@@ -9,7 +9,7 @@ import {buildItrBundle} from '../domain/export/itr'
 import {exportBackup} from '../domain/export'
 import {downloadText} from '../lib/download'
 import {formatDateTime, formatMoney} from '../lib/format'
-import {Panel, PageHeader, SectionTitle, EmptyState, StatusBadge, MetricCard} from '../components/Ui'
+import {Panel, PageHeader, SectionTitle, EmptyState, EmptyStateIllustrations, StatusBadge, MetricCard} from '../components/Ui'
 
 const COLORS = ['var(--spectrum-global-color-blue-600)', 'var(--spectrum-global-color-celery-600)']
 
@@ -84,6 +84,7 @@ export const DashboardPage = () => {
               title="No imports yet"
               description="Upload a tradebook or try one of the sample files to populate your files vault and import history."
               action={<Button variant="accent" onPress={() => navigate('/uploads')}>Go to Uploads</Button>}
+              illustration={<EmptyStateIllustrations.upload />}
             />
           ) : (
             <View UNSAFE_style={{display: 'grid', gap: '12px'}}>
@@ -108,7 +109,7 @@ export const DashboardPage = () => {
         <Panel>
           <SectionTitle title="Asset allocation" subtitle="India vs foreign split by current value." />
           {summary.indian === 0 && summary.foreign === 0 ? (
-            <EmptyState title="Nothing priced yet" description="Upload trade data and monthly prices to see allocation charts." />
+            <EmptyState title="Nothing priced yet" description="Upload trade data and monthly prices to see allocation charts." illustration={<EmptyStateIllustrations.generic />} />
           ) : (
             <View UNSAFE_style={{height: '16rem'}}>
               <ResponsiveContainer width="100%" height="100%">

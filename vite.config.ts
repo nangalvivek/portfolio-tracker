@@ -25,9 +25,10 @@ export default defineConfig(({mode}) => ({
   base,
   resolve: mode === 'test'
     ? {
-        alias: {
-          '@adobe/react-spectrum': resolve(rootDir, 'test-support/react-spectrum-shim.tsx'),
-        },
+        alias: [
+          {find: '@adobe/react-spectrum', replacement: resolve(rootDir, 'test-support/react-spectrum-shim.tsx')},
+          {find: /^@spectrum-icons\/illustrations(?:\/.*)?$/, replacement: resolve(rootDir, 'test-support/illustrations-shim.tsx')},
+        ],
       }
     : undefined,
   plugins: [
@@ -67,7 +68,7 @@ export default defineConfig(({mode}) => ({
     css: true,
     server: {
       deps: {
-        inline: ['@adobe/react-spectrum', '@spectrum-icons/workflow'],
+        inline: ['@adobe/react-spectrum', '@spectrum-icons/workflow', '@spectrum-icons/illustrations'],
       },
     },
   },

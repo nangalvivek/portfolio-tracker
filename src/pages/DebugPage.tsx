@@ -5,7 +5,7 @@ import {computeDedupeHash} from '../domain/dedupe'
 import {fifoTrace} from '../domain/fifo'
 import {downloadText} from '../lib/download'
 import {formatDateTime, formatMoney, formatQty} from '../lib/format'
-import {EmptyState, Panel, PageHeader, SectionTitle} from '../components/Ui'
+import {EmptyState, Panel, PageHeader, SectionTitle, EmptyStateIllustrations} from '../components/Ui'
 
 const categories = ['ALL', 'IMPORT', 'DEDUPE', 'FIFO', 'PRICE', 'ERROR', 'SYSTEM'] as const
 
@@ -68,7 +68,7 @@ export const DebugPage = () => {
             {categories.map((category) => <Item key={category}>{category}</Item>)}
           </Picker>
           {filteredLogs.length === 0 ? (
-            <EmptyState title="No logs yet" description="Imports, dedupe actions, FIFO traces, and validation errors will appear here." />
+            <EmptyState title="No logs yet" description="Imports, dedupe actions, FIFO traces, and validation errors will appear here." illustration={<EmptyStateIllustrations.generic />} />
           ) : (
             <TableView aria-label="System log" density="compact">
               <TableHeader>
@@ -93,7 +93,7 @@ export const DebugPage = () => {
           <SectionTitle title="Transaction inspector" subtitle="Search by symbol or date and inspect source documents." />
           <SearchField label="Search transactions" description="Search by date or symbol" value={search} onChange={setSearch} />
           {searchResults.length === 0 ? (
-            <EmptyState title="No results" description="Enter a date or symbol to inspect transaction source rows." />
+            <EmptyState title="No results" description="Enter a date or symbol to inspect transaction source rows." illustration={<EmptyStateIllustrations.search />} />
           ) : (
             <View UNSAFE_style={{display: 'grid', gap: '12px', marginTop: '12px'}}>
               {searchResults.map((txn) => (
@@ -147,14 +147,14 @@ export const DebugPage = () => {
         <Panel>
           <SectionTitle title="FIFO trace" subtitle="Pick a sell transaction to see lot consumption step-by-step." />
           {sellTxns.length === 0 ? (
-            <EmptyState title="No sell transactions yet" description="Add sell rows to inspect FIFO trace output." />
+            <EmptyState title="No sell transactions yet" description="Add sell rows to inspect FIFO trace output." illustration={<EmptyStateIllustrations.generic />} />
           ) : (
             <>
               <Picker aria-label="Sell transaction" selectedKey={selectedSellId} onSelectionChange={(key) => setSelectedSellId(String(key))} items={sellTxns}>
                 {(txn) => <Item key={txn.id}>{securityById.get(txn.securityId)?.symbol ?? txn.securityId} · {txn.date} · {formatQty(txn.quantity)}</Item>}
               </Picker>
               {trace.steps.length === 0 ? (
-                <EmptyState title="Choose a sell transaction" description="FIFO lot consumption details will appear here." />
+                <EmptyState title="Choose a sell transaction" description="FIFO lot consumption details will appear here." illustration={<EmptyStateIllustrations.generic />} />
               ) : (
                 <TableView aria-label="FIFO trace" density="compact">
                   <TableHeader>

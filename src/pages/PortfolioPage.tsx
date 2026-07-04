@@ -1,12 +1,14 @@
 import {useEffect, useMemo, useState} from 'react'
 import {Button, Flex, Heading, SearchField, Text, View, TableView, TableHeader, Column, TableBody, Row, Cell, StatusLight} from '@adobe/react-spectrum'
+import {useNavigate} from 'react-router-dom'
 import {usePortfolioData} from '../hooks/usePortfolioData'
 import {formatMoney, formatQty} from '../lib/format'
-import {Panel, PageHeader, SectionTitle, EmptyState} from '../components/Ui'
+import {Panel, PageHeader, SectionTitle, EmptyState, EmptyStateIllustrations} from '../components/Ui'
 
 type RegionFilter = 'ALL' | 'IN' | 'US'
 
 export const PortfolioPage = () => {
+  const navigate = useNavigate()
   const {holdings} = usePortfolioData()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<RegionFilter>('ALL')
@@ -35,10 +37,17 @@ export const PortfolioPage = () => {
     <View UNSAFE_style={{display: 'grid', gap: '24px'}}>
       <PageHeader title="Portfolio" subtitle="Holdings, average cost, and FIFO open lots." />
 
-      <Panel>
-        {holdings.length === 0 ? (
-          <EmptyState title="No holdings yet" description="Upload a tradebook to populate holdings and open lots." />
-        ) : (
+      {holdings.length === 0 ? (
+        <View UNSAFE_style={{display: 'grid', justifyItems: 'center', paddingBlockStart: 'size-800', paddingBlockEnd: 'size-800'}}>
+          <EmptyState
+            title="No holdings yet"
+            description="Upload a tradebook to populate holdings and open lots."
+            illustration={<EmptyStateIllustrations.generic />}
+            action={<Button variant="accent" onPress={() => navigate('/uploads')}>Upload tradebook</Button>}
+          />
+        </View>
+      ) : (
+        <Panel>
           <View UNSAFE_style={{display: 'grid', gap: '20px'}}>
             <Flex gap="size-100" wrap alignItems="end" justifyContent="space-between">
               <SearchField label="Search holdings" description="Search by symbol or ISIN" value={search} onChange={setSearch} />
@@ -50,7 +59,7 @@ export const PortfolioPage = () => {
             </Flex>
 
             {filteredHoldings.length === 0 ? (
-              <EmptyState title="No matching holdings" description="Try a different symbol, ISIN, or region filter." />
+              <EmptyState title="No matching holdings" description="Try a different symbol, ISIN, or region filter." illustration={<EmptyStateIllustrations.search />} />
             ) : (
               <View UNSAFE_style={{display: 'grid', gap: '20px'}}>
                 <TableView aria-label="Portfolio holdings" density="compact">
@@ -93,7 +102,7 @@ export const PortfolioPage = () => {
                   <View UNSAFE_style={{display: 'grid', gap: '12px'}}>
                     <SectionTitle title={`FIFO open lots for ${selectedHolding.security?.symbol ?? selectedHolding.securityId}`} subtitle="Details for the selected holding." />
                     {selectedHolding.openLots.length === 0 ? (
-                      <EmptyState title="No open lots" description="All lots for this holding have been sold." />
+                      <EmptyState title="No open lots" description="All lots for this holding have been sold." illustration={<EmptyStateIllustrations.generic />} />
                     ) : (
                       <TableView aria-label="Open lots" density="compact">
                         <TableHeader>
@@ -119,8 +128,8 @@ export const PortfolioPage = () => {
               </View>
             )}
           </View>
-        )}
-      </Panel>
+        </Panel>
+      )}
     </View>
   )
 }

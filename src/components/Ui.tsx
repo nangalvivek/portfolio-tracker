@@ -1,4 +1,8 @@
+/* oxlint-disable react/only-export-components */
 import {Content, Flex, Heading, IllustratedMessage, StatusLight, Text, View, Well} from '@adobe/react-spectrum'
+import NotFoundIllustration from '@spectrum-icons/illustrations/NotFound'
+import NoSearchResultsIllustration from '@spectrum-icons/illustrations/NoSearchResults'
+import UploadIllustration from '@spectrum-icons/illustrations/Upload'
 import type {ReactNode} from 'react'
 
 export const Panel = ({children}: {children: ReactNode}) => (
@@ -39,25 +43,39 @@ export const SectionTitle = ({title, subtitle, actions}: {title: string; subtitl
   </Flex>
 )
 
-export const EmptyState = ({title, description, action, icon}: {title: string; description: string; action?: ReactNode; icon?: ReactNode}) => (
-  <Well
+export const EmptyStateIllustrations = {
+  generic: NotFoundIllustration,
+  search: NoSearchResultsIllustration,
+  upload: UploadIllustration,
+} as const
+
+export const EmptyState = ({
+  title,
+  description,
+  action,
+  illustration,
+}: {
+  title: string
+  description: string
+  action?: ReactNode
+  illustration?: ReactNode
+}) => (
+  <View
     UNSAFE_style={{
-      borderStyle: 'dashed',
-      borderWidth: '1px',
-      borderColor: 'var(--spectrum-global-color-gray-200)',
-      background: 'var(--spectrum-global-color-gray-50)',
-      padding: '24px',
+      display: 'grid',
+      justifyItems: 'center',
+      textAlign: 'center',
+      gap: '12px',
+      padding: '24px 12px',
     }}
   >
-    <View UNSAFE_style={{display: 'grid', justifyItems: 'center', textAlign: 'center', gap: '12px'}}>
-      <IllustratedMessage>
-        {icon ?? null}
-        <Heading level={4}>{title}</Heading>
-        <Content>{description}</Content>
-        {action ? <Content>{action}</Content> : null}
-      </IllustratedMessage>
-    </View>
-  </Well>
+    <IllustratedMessage>
+      {illustration ?? <NotFoundIllustration />}
+      <Heading level={4}>{title}</Heading>
+      <Content>{description}</Content>
+      {action ? <Content>{action}</Content> : null}
+    </IllustratedMessage>
+  </View>
 )
 
 export const MetricCard = ({label, value}: {label: string; value: string}) => (

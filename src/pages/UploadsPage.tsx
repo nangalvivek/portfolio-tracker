@@ -10,7 +10,7 @@ import {exportBackup, restoreBackup} from '../domain/export'
 import {downloadBlob, downloadText} from '../lib/download'
 import {formatDateTime, formatMoney, formatQty} from '../lib/format'
 import {usePortfolioData} from '../hooks/usePortfolioData'
-import {EmptyState, Panel, PageHeader, SectionTitle} from '../components/Ui'
+import {EmptyState, Panel, PageHeader, SectionTitle, EmptyStateIllustrations} from '../components/Ui'
 
 type ImportMode = 'trades' | 'prices'
 type PreviewTab = 'raw' | 'parsed' | 'duplicates'
@@ -243,7 +243,7 @@ export const UploadsPage = () => {
 
                 {tab === 'duplicates' ? (
                   duplicateRows.length === 0 ? (
-                    <EmptyState title="No duplicates detected" description="This file does not match an existing transaction hash." />
+                    <EmptyState title="No duplicates detected" description="This file does not match an existing transaction hash." illustration={<EmptyStateIllustrations.generic />} />
                   ) : (
                     <View UNSAFE_style={{display: 'grid', gap: '12px'}}>
                       <TableView aria-label="Duplicate rows" density="compact">
@@ -290,7 +290,7 @@ export const UploadsPage = () => {
                 ) : null}
               </View>
             ) : (
-              <EmptyState title="Preview an import" description="Choose a sample file or upload your own tradebook to see parsing, dedupe, and commit controls." />
+              <EmptyState title="Preview an import" description="Choose a sample file or upload your own tradebook to see parsing, dedupe, and commit controls." illustration={<EmptyStateIllustrations.upload />} />
             )}
           </Panel>
 
@@ -298,7 +298,12 @@ export const UploadsPage = () => {
             <Panel>
               <SectionTitle title="Document vault" subtitle="Original imports stored as Blobs for audit and download." />
               {files.length === 0 ? (
-                <EmptyState title="No documents yet" description="Committed imports appear here." />
+                <EmptyState
+                  title="No documents yet"
+                  description="Committed imports appear here."
+                  illustration={<EmptyStateIllustrations.upload />}
+                  action={<Button variant="accent" onPress={() => { setMode('trades'); setSearchParams({mode: 'trades'}) }}>Upload tradebook</Button>}
+                />
               ) : (
                 <TableView aria-label="Documents" density="compact">
                   <TableHeader>
@@ -376,7 +381,12 @@ export const UploadsPage = () => {
                   </TableView>
                 </View>
               ) : (
-                <EmptyState title="No price file yet" description="Upload monthly prices to power current value, peak FA, and tax calculations." />
+                <EmptyState
+                  title="No price file yet"
+                  description="Upload monthly prices to power current value, peak FA, and tax calculations."
+                  illustration={<EmptyStateIllustrations.upload />}
+                  action={<Button variant="accent" onPress={() => { setMode('prices'); setSearchParams({mode: 'prices'}) }}>Add monthly prices</Button>}
+                />
               )}
             </Panel>
 
@@ -392,7 +402,7 @@ export const UploadsPage = () => {
       ) : (
         <Panel>
           <SectionTitle title="Monthly prices" subtitle="Upload the monthly price CSV from the toolbar above." />
-          <EmptyState title="Switch to Monthly prices" description="Use the Monthly prices button to open the price upload workspace." />
+          <EmptyState title="Switch to Monthly prices" description="Use the Monthly prices button to open the price upload workspace." illustration={<EmptyStateIllustrations.upload />} />
         </Panel>
       )}
     </View>

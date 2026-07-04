@@ -11,7 +11,7 @@ import {toCsv} from '../domain/export'
 import {downloadText} from '../lib/download'
 import {formatDate, formatMoney, formatQty} from '../lib/format'
 import {useTaxYear} from '../app/taxYearContext'
-import {EmptyState, Panel, PageHeader, SectionTitle, MetricCard} from '../components/Ui'
+import {EmptyState, Panel, PageHeader, SectionTitle, MetricCard, EmptyStateIllustrations} from '../components/Ui'
 
 type TabKey = 'fa' | 'fsi' | 'tr' | 'cg'
 
@@ -84,7 +84,7 @@ export const TaxPage = () => {
             <Panel>
               <SectionTitle title={`FA – A3 (${taxYear})`} subtitle="Foreign assets held during the calendar year." />
               {faRows.length === 0 ? (
-                <EmptyState title="No FA rows yet" description="Foreign securities held during the selected calendar year will appear here." />
+                <EmptyState title="No FA rows yet" description="Foreign securities held during the selected calendar year will appear here." illustration={<EmptyStateIllustrations.generic />} />
               ) : (
                 <View UNSAFE_style={{display: 'grid', gap: '16px'}}>
                   <TableView aria-label="FA schedule" density="compact">
@@ -151,7 +151,7 @@ export const TaxPage = () => {
             <Panel>
               <SectionTitle title={`FSI (${taxYear})`} subtitle="Foreign dividends grouped by country." />
               {fsiRows.length === 0 ? (
-                <EmptyState title="No FSI rows yet" description="Dividend transactions in the selected calendar year will appear here." />
+                <EmptyState title="No FSI rows yet" description="Dividend transactions in the selected calendar year will appear here." illustration={<EmptyStateIllustrations.generic />} />
               ) : (
                 <TableView aria-label="FSI schedule" density="compact">
                   <TableHeader>
@@ -181,7 +181,7 @@ export const TaxPage = () => {
             <Panel>
               <SectionTitle title={`TR (${taxYear})`} subtitle="Foreign tax credit relief summary." />
               {trRows.length === 0 ? (
-                <EmptyState title="No TR rows yet" description="Foreign tax paid will be summarized here based on FSI rows." />
+                <EmptyState title="No TR rows yet" description="Foreign tax paid will be summarized here based on FSI rows." illustration={<EmptyStateIllustrations.generic />} />
               ) : (
                 <TableView aria-label="TR schedule" density="compact">
                   <TableHeader>
@@ -225,7 +225,7 @@ export const TaxPage = () => {
                   <Panel key={term}>
                     <SectionTitle title={`${term} rows`} subtitle="Per-sell rows split by lot classification." />
                     {rows.length === 0 ? (
-                      <EmptyState title={`No ${term} rows`} description={`No ${term} disposals were realized in this financial year.`} />
+                      <EmptyState title={`No ${term} rows`} description={`No ${term} disposals were realized in this financial year.`} illustration={<EmptyStateIllustrations.generic />} />
                     ) : (
                       <TableView aria-label={`${term} capital gains`} density="compact">
                         <TableHeader>
