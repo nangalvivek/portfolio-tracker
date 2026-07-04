@@ -2,6 +2,7 @@ import {HashRouter, Navigate, Route, Routes} from 'react-router-dom'
 import {Layout} from './Layout'
 import {TaxYearProvider} from './TaxYearContext'
 import {DashboardPage} from '../pages/DashboardPage'
+import {AccountsPage} from '../pages/AccountsPage'
 import {PortfolioPage} from '../pages/PortfolioPage'
 import {UploadsPage} from '../pages/UploadsPage'
 import {TaxPage} from '../pages/TaxPage'
@@ -14,6 +15,7 @@ export const App = () => (
         <Route element={<Layout />}>
           <Route index element={<DashboardPage />} />
           <Route path="portfolio" element={<PortfolioPage />} />
+          <Route path="accounts" element={<AccountsPage />} />
           <Route path="uploads" element={<UploadsPage />} />
           <Route path="tax" element={<TaxPage />} />
           <Route path="debug" element={<DebugPage />} />

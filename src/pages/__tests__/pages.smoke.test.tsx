@@ -4,6 +4,7 @@ import {MemoryRouter} from 'react-router-dom'
 import {AppThemeProvider} from '../../app/theme'
 import {TaxYearProvider} from '../../app/TaxYearContext'
 import {DashboardPage} from '../DashboardPage'
+import {AccountsPage} from '../AccountsPage'
 import {PortfolioPage} from '../PortfolioPage'
 import {UploadsPage} from '../UploadsPage'
 import {TaxPage} from '../TaxPage'
@@ -40,6 +41,12 @@ describe('page smoke renders', () => {
   it('renders portfolio', () => {
     renderPage(<PortfolioPage />)
     expect(screen.getByText('Portfolio')).toBeInTheDocument()
+  })
+
+  it('renders accounts', () => {
+    renderPage(<AccountsPage />)
+    expect(screen.getByText('Accounts')).toBeInTheDocument()
+    expect(screen.getByText('No accounts yet')).toBeInTheDocument()
   })
 
   it('renders uploads', () => {

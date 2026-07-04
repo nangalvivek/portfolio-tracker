@@ -1,6 +1,7 @@
 import {useLocation, useNavigate} from 'react-router-dom'
 import AppsIcon from '@react-spectrum/s2/icons/Apps'
 import ChartTrendIcon from '@react-spectrum/s2/icons/ChartTrend'
+import BriefcaseIcon from '@react-spectrum/s2/icons/Briefcase'
 import UploadIcon from '@react-spectrum/s2/icons/Upload'
 import FileTextIcon from '@react-spectrum/s2/icons/FileText'
 import BugIcon from '@react-spectrum/s2/icons/Bug'
@@ -10,6 +11,7 @@ import {useEffect, useState} from 'react'
 const navItems = [
   {key: 'dashboard', label: 'Dashboard', path: '/', icon: AppsIcon},
   {key: 'portfolio', label: 'Portfolio', path: '/portfolio', icon: ChartTrendIcon},
+  {key: 'accounts', label: 'Accounts', path: '/accounts', icon: BriefcaseIcon},
   {key: 'uploads', label: 'Uploads', path: '/uploads', icon: UploadIcon},
   {key: 'tax', label: 'Tax', path: '/tax', icon: FileTextIcon},
   {key: 'debug', label: 'Debug', path: '/debug', icon: BugIcon},
@@ -32,6 +34,7 @@ const useIsNarrow = (query: string): boolean => {
 const routeToKey = (pathname: string): string => {
   if (pathname === '/') return 'dashboard'
   if (pathname.startsWith('/portfolio')) return 'portfolio'
+  if (pathname.startsWith('/accounts')) return 'accounts'
   if (pathname.startsWith('/uploads')) return 'uploads'
   if (pathname.startsWith('/tax')) return 'tax'
   if (pathname.startsWith('/debug')) return 'debug'
@@ -41,6 +44,7 @@ const routeToKey = (pathname: string): string => {
 const keyToPath: Record<string, string> = {
   dashboard: '/',
   portfolio: '/portfolio',
+  accounts: '/accounts',
   uploads: '/uploads',
   tax: '/tax',
   debug: '/debug',
