@@ -1,15 +1,19 @@
 import {useEffect, useMemo, useState} from 'react'
-import {Button, Flex, Heading, SearchField, Text, View, TableView, TableHeader, Column, TableBody, Row, Cell, StatusLight} from '@adobe/react-spectrum'
-import {Button as S2Button} from '@react-spectrum/s2/Button'
-import {ButtonGroup as S2ButtonGroup} from '@react-spectrum/s2/ButtonGroup'
-import {Content as S2Content, Heading as S2Heading, IllustratedMessage as S2IllustratedMessage} from '@react-spectrum/s2/IllustratedMessage'
+import {Button, Column, Content, Heading, IllustratedMessage, SearchField, StatusLight, TableBody, TableHeader, TableView, Cell, Row, Text} from '@react-spectrum/s2'
+import {ButtonGroup} from '@react-spectrum/s2'
+import {style, space} from '@react-spectrum/s2/style' with {type: 'macro'}
 import DropToUploadIllustration from '@react-spectrum/s2/illustrations/gradient/generic1/DropToUpload'
 import {useNavigate} from 'react-router-dom'
 import {usePortfolioData} from '../hooks/usePortfolioData'
 import {formatMoney, formatQty} from '../lib/format'
-import {Panel, PageHeader, SectionTitle, EmptyState, EmptyStateIllustrations} from '../components/Ui'
+import {Panel, PageHeader, SectionTitle, EmptyState, EmptyStateIllustrations, pageStackStyle, pageSectionGridStyle, pageEmptyRegionStyle, secondaryTextStyle, toStyleString} from '../components/Ui'
 
 type RegionFilter = 'ALL' | 'IN' | 'US'
+
+const portfolioToolbarStyle: string = style({display: 'flex', gap: space(16), flexWrap: 'wrap', alignItems: 'end', justifyContent: 'space-between'})
+const filterGroupStyle: string = style({display: 'flex', gap: space(8), flexWrap: 'wrap'})
+const pageTableStackStyle: string = style({display: 'grid', gap: space(20)})
+const selectedLotsStyle: string = style({display: 'grid', gap: space(12)})
 
 export const PortfolioPage = () => {
   const navigate = useNavigate()
@@ -38,46 +42,36 @@ export const PortfolioPage = () => {
   const selectedHolding = filteredHoldings.find((holding) => `${holding.securityId}|${holding.accountId}` === selectedHoldingId)
 
   return (
-    <View UNSAFE_style={{display: 'flex', flexDirection: 'column', gap: '24px', minHeight: '100%', flex: '1 1 auto'}}>
+    <div className={pageStackStyle}>
       <PageHeader title="Portfolio" subtitle="Holdings, average cost, and FIFO open lots." />
 
       {holdings.length === 0 ? (
-        <div
-          style={{
-            flex: '1 1 auto',
-            minHeight: '0',
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingBlock: '2rem',
-          }}
-        >
-          <S2IllustratedMessage size="L">
+        <div className={pageEmptyRegionStyle}>
+          <IllustratedMessage size="L">
             <DropToUploadIllustration />
-            <S2Heading>No holdings yet</S2Heading>
-            <S2Content>Upload a tradebook to populate holdings and open lots.</S2Content>
-            <S2ButtonGroup>
-              <S2Button variant="accent" onPress={() => navigate('/uploads')}>Upload tradebook</S2Button>
-            </S2ButtonGroup>
-          </S2IllustratedMessage>
+            <Heading>No holdings yet</Heading>
+            <Content>Upload a tradebook to populate holdings and open lots.</Content>
+            <ButtonGroup>
+              <Button variant="accent" onPress={() => navigate('/uploads')}>Upload tradebook</Button>
+            </ButtonGroup>
+          </IllustratedMessage>
         </div>
       ) : (
         <Panel>
-          <View UNSAFE_style={{display: 'grid', gap: '20px'}}>
-            <Flex gap="size-100" wrap alignItems="end" justifyContent="space-between">
+          <div className={pageSectionGridStyle}>
+            <div className={portfolioToolbarStyle}>
               <SearchField label="Search holdings" description="Search by symbol or ISIN" value={search} onChange={setSearch} />
-              <Flex gap="size-100" wrap>
+              <div className={filterGroupStyle}>
                 {(['ALL', 'IN', 'US'] as const).map((item) => (
                   <Button key={item} variant={filter === item ? 'accent' : 'secondary'} onPress={() => setFilter(item)}>{item === 'ALL' ? 'All' : item === 'IN' ? 'India' : 'Foreign'}</Button>
                 ))}
-              </Flex>
-            </Flex>
+              </div>
+            </div>
 
             {filteredHoldings.length === 0 ? (
               <EmptyState title="No matching holdings" description="Try a different symbol, ISIN, or region filter." illustration={<EmptyStateIllustrations.search />} />
             ) : (
-              <View UNSAFE_style={{display: 'grid', gap: '20px'}}>
+              <div className={pageTableStackStyle}>
                 <TableView aria-label="Portfolio holdings" density="compact">
                   <TableHeader>
                     <Column isRowHeader>Security</Column>
@@ -92,10 +86,10 @@ export const PortfolioPage = () => {
                     {(holding) => (
                       <Row key={`${holding.securityId}|${holding.accountId}`}>
                         <Cell>
-                          <Flex direction="column">
-                            <Heading level={4} margin={0}>{holding.security?.symbol ?? holding.securityId}</Heading>
-                            <Text UNSAFE_style={{color: 'var(--spectrum-alias-text-color-secondary)'}}>{holding.security?.isin ?? '—'} · {holding.region}</Text>
-                          </Flex>
+                          <div>
+                            <Heading level={4}>{holding.security?.symbol ?? holding.securityId}</Heading>
+                            <Text styles={toStyleString(secondaryTextStyle)}>{holding.security?.isin ?? '—'} · {holding.region}</Text>
+                          </div>
                         </Cell>
                         <Cell>{holding.account?.name ?? holding.accountId}</Cell>
                         <Cell>{formatQty(holding.quantity)}</Cell>
@@ -115,7 +109,7 @@ export const PortfolioPage = () => {
                 </TableView>
 
                 {selectedHolding ? (
-                  <View UNSAFE_style={{display: 'grid', gap: '12px'}}>
+                  <div className={selectedLotsStyle}>
                     <SectionTitle title={`FIFO open lots for ${selectedHolding.security?.symbol ?? selectedHolding.securityId}`} subtitle="Details for the selected holding." />
                     {selectedHolding.openLots.length === 0 ? (
                       <EmptyState title="No open lots" description="All lots for this holding have been sold." illustration={<EmptyStateIllustrations.generic />} />
@@ -139,13 +133,13 @@ export const PortfolioPage = () => {
                         </TableBody>
                       </TableView>
                     )}
-                  </View>
+                  </div>
                 ) : null}
-              </View>
+              </div>
             )}
-          </View>
+          </div>
         </Panel>
       )}
-    </View>
+    </div>
   )
 }

@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useState} from 'react'
-import {Button, Column, DropZone, FileTrigger, Flex, Heading, Row, Cell, StatusLight, TableBody, TableHeader, TableView, Text, View} from '@adobe/react-spectrum'
+import {Button, Cell, Column, DropZone, FileTrigger, Heading, Row, StatusLight, TableBody, TableHeader, TableView, Text} from '@react-spectrum/s2'
+import {style, space} from '@react-spectrum/s2/style' with {type: 'macro'}
 import {useSearchParams} from 'react-router-dom'
 import {db} from '../db/db'
 import {parserRegistry} from '../domain/parsers'
@@ -10,7 +11,7 @@ import {exportBackup, restoreBackup} from '../domain/export'
 import {downloadBlob, downloadText} from '../lib/download'
 import {formatDateTime, formatMoney, formatQty} from '../lib/format'
 import {usePortfolioData} from '../hooks/usePortfolioData'
-import {EmptyState, Panel, PageHeader, SectionTitle, EmptyStateIllustrations} from '../components/Ui'
+import {EmptyState, Panel, PageHeader, SectionTitle, EmptyStateIllustrations, pageStackStyle, pageTwoColumnGridStyle, pageSectionGridStyle, secondaryTextStyle, toStyleString} from '../components/Ui'
 
 type ImportMode = 'trades' | 'prices'
 type PreviewTab = 'raw' | 'parsed' | 'duplicates'
@@ -52,6 +53,16 @@ const readFile = async (file: File): Promise<{text: string; blob: Blob; sha256: 
 const splitLines = (text: string): string[] => text.split(/\r?\n/)
 
 const appendBasePath = (file: string): string => `${import.meta.env.BASE_URL}${file}`
+
+const toolbarStyle: string = style({display: 'flex', gap: space(8), flexWrap: 'wrap'})
+const centeredDropStyle: string = style({padding: space(24), textAlign: 'center'})
+const previewStackStyle: string = style({display: 'grid', gap: space(16)})
+const previewGridStyle: string = style({display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(16rem, 1fr))', gap: space(12)})
+const sampleRowStyle: string = style({display: 'flex', gap: space(8), flexWrap: 'wrap', justifyContent: 'center', marginTop: space(12)})
+const rawTextStyle: string = style({whiteSpace: 'pre-wrap', fontFamily: 'code'})
+const monoTextStyle: string = style({whiteSpace: 'pre-wrap', fontFamily: 'code'})
+const scrollBoxStyle: string = style({display: 'grid', gap: space(8), maxHeight: space(192), overflow: 'auto'})
+const actionRowStyle: string = style({display: 'flex', gap: space(8), flexWrap: 'wrap', justifyContent: 'end'})
 
 export const UploadsPage = () => {
   const {files, transactions, securityById} = usePortfolioData()
@@ -150,7 +161,7 @@ export const UploadsPage = () => {
   }
 
   return (
-    <View UNSAFE_style={{display: 'grid', gap: '24px'}}>
+    <div className={pageStackStyle}>
       <PageHeader
         title="Uploads"
         subtitle="Preview imports before committing them. Sample files are available for quick testing."
@@ -166,7 +177,7 @@ export const UploadsPage = () => {
       {message ? <Panel><Text>{message}</Text></Panel> : null}
 
       {mode === 'trades' ? (
-        <View UNSAFE_style={{display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(18rem, 1fr)', gap: '20px'}}>
+        <div className={pageTwoColumnGridStyle}>
           <Panel>
             <SectionTitle title="Import wizard" subtitle="Drop a CSV or choose a sample. Preview first, then commit." />
             <DropZone
@@ -177,37 +188,37 @@ export const UploadsPage = () => {
                 if (fileItem) await previewTradeFile(await fileItem.getFile())
               }}
             >
-              <View UNSAFE_style={{padding: '24px', textAlign: 'center'}}>
+              <div className={centeredDropStyle}>
                 <Heading level={4}>Drag and drop a tradebook here</Heading>
-                <Text UNSAFE_style={{color: 'var(--spectrum-alias-text-color-secondary)'}}>or pick a sample below</Text>
-                <Flex gap="size-100" wrap justifyContent="center" UNSAFE_style={{marginTop: '12px'}}>
+                <Text styles={toStyleString(secondaryTextStyle)}>or pick a sample below</Text>
+                <div className={sampleRowStyle}>
                   {tradeSamples.map((sample) => (
                     <Button key={sample.file} variant="secondary" onPress={async () => {
                       const response = await fetch(appendBasePath(sample.file))
                       await previewTradeFile(new File([await response.text()], sample.name, {type: 'text/csv'}))
                     }}>{sample.name}</Button>
                   ))}
-                </Flex>
+                </div>
                 <FileTrigger acceptedFileTypes={["text/csv"]} onSelect={(files) => { const file = files?.[0]; if (file) void previewTradeFile(file) }}>
                   <Button variant="accent">Browse files</Button>
                 </FileTrigger>
-              </View>
+              </div>
             </DropZone>
 
             {tradePreview ? (
-              <View UNSAFE_style={{display: 'grid', gap: '16px', marginTop: '16px'}}>
-                <Flex gap="size-100" wrap>
+              <div className={previewStackStyle}>
+                <div className={toolbarStyle}>
                   {(['raw', 'parsed', 'duplicates'] as const).map((item) => (
                     <Button key={item} variant={tab === item ? 'accent' : 'secondary'} onPress={() => setTab(item)}>{item === 'raw' ? 'Raw Preview' : item === 'parsed' ? 'Parsed' : 'Duplicates'}</Button>
                   ))}
                   <Button variant="accent" onPress={() => void commitTradeImport()}>Commit import</Button>
-                </Flex>
+                </div>
 
                 {tab === 'raw' ? (
                   <Panel>
-                    <View UNSAFE_style={{whiteSpace: 'pre-wrap', fontFamily: 'var(--spectrum-code-font-family, monospace)', fontSize: '12px'}}>
+                    <div className={rawTextStyle}>
                       {rawLines.map((line, index) => `${String(index + 1).padStart(3, ' ')}  ${line}`).join('\n')}
-                    </View>
+                    </div>
                   </Panel>
                 ) : null}
 
@@ -245,7 +256,7 @@ export const UploadsPage = () => {
                   duplicateRows.length === 0 ? (
                     <EmptyState title="No duplicates detected" description="This file does not match an existing transaction hash." illustration={<EmptyStateIllustrations.generic />} />
                   ) : (
-                    <View UNSAFE_style={{display: 'grid', gap: '12px'}}>
+                    <div className={previewStackStyle}>
                       <TableView aria-label="Duplicate rows" density="compact">
                         <TableHeader>
                           <Column>Line</Column>
@@ -263,38 +274,38 @@ export const UploadsPage = () => {
                         </TableBody>
                       </TableView>
                       {selectedDuplicate && tradePreview ? (
-                        <View UNSAFE_style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(16rem, 1fr))', gap: '12px'}}>
+                        <div className={previewGridStyle}>
                           <Panel>
                             <Heading level={4}>Incoming row</Heading>
-                            <Text UNSAFE_style={{whiteSpace: 'pre-wrap', fontFamily: 'var(--spectrum-code-font-family, monospace)'}}>{selectedDuplicateCandidate?.rawRow.rawText}</Text>
+                            <Text styles={toStyleString(monoTextStyle)}>{selectedDuplicateCandidate?.rawRow.rawText}</Text>
                           </Panel>
                           <Panel>
                             <Heading level={4}>Matched existing txn</Heading>
                             <Text>{selectedDuplicateExisting?.securityId}</Text>
                             <Text>{selectedDuplicateExisting?.date} · {selectedDuplicateExisting?.type} · {formatQty(selectedDuplicateExisting?.quantity)}</Text>
-                            <Text UNSAFE_style={{marginTop: '8px'}}>Files: {(selectedDuplicateExisting?.sourceFileIds ?? []).map((fileId) => fileNames.get(fileId) ?? fileId).join(', ')}</Text>
+                            <Text styles={toStyleString(secondaryTextStyle)}>Files: {(selectedDuplicateExisting?.sourceFileIds ?? []).map((fileId) => fileNames.get(fileId) ?? fileId).join(', ')}</Text>
                           </Panel>
-                        </View>
+                        </div>
                       ) : null}
-                    </View>
+                    </div>
                   )
                 ) : null}
 
                 {importWarnings.length > 0 ? (
                   <Panel>
                     <SectionTitle title="Import log" subtitle="Reasons and warnings collected during preview." />
-                    <View UNSAFE_style={{display: 'grid', gap: '8px', maxHeight: '12rem', overflow: 'auto'}}>
+                    <div className={scrollBoxStyle}>
                       {importWarnings.map((warning, index) => <Text key={`${warning}-${index}`}>• {warning}</Text>)}
-                    </View>
+                    </div>
                   </Panel>
                 ) : null}
-              </View>
+              </div>
             ) : (
               <EmptyState title="Preview an import" description="Choose a sample file or upload your own tradebook to see parsing, dedupe, and commit controls." illustration={<EmptyStateIllustrations.upload />} />
             )}
           </Panel>
 
-          <View UNSAFE_style={{display: 'grid', gap: '20px'}}>
+          <div className={pageSectionGridStyle}>
             <Panel>
               <SectionTitle title="Document vault" subtitle="Original imports stored as Blobs for audit and download." />
               {files.length === 0 ? (
@@ -338,25 +349,25 @@ export const UploadsPage = () => {
                   if (fileItem) await previewPriceFile(await fileItem.getFile())
                 }}
               >
-                <View UNSAFE_style={{padding: '24px', textAlign: 'center'}}>
+                <div className={centeredDropStyle}>
                   <Heading level={4}>Drop monthly prices here</Heading>
-                  <Text UNSAFE_style={{color: 'var(--spectrum-alias-text-color-secondary)'}}>or pick the sample file below</Text>
-                  <Flex gap="size-100" wrap justifyContent="center" UNSAFE_style={{marginTop: '12px'}}>
+                  <Text styles={toStyleString(secondaryTextStyle)}>or pick the sample file below</Text>
+                  <div className={sampleRowStyle}>
                     {priceSamples.map((sample) => (
                       <Button key={sample.file} variant="secondary" onPress={async () => {
                         const response = await fetch(appendBasePath(sample.file))
                         await previewPriceFile(new File([await response.text()], sample.name, {type: 'text/csv'}))
                       }}>{sample.name}</Button>
                     ))}
-                  </Flex>
+                  </div>
                   <FileTrigger acceptedFileTypes={["text/csv"]} onSelect={(files) => { const file = files?.[0]; if (file) void previewPriceFile(file) }}>
                     <Button variant="accent">Browse files</Button>
                   </FileTrigger>
-                </View>
+                </div>
               </DropZone>
 
               {pricePreview ? (
-                <View UNSAFE_style={{display: 'grid', gap: '12px', marginTop: '16px'}}>
+                <div className={previewStackStyle}>
                   <Button variant="accent" onPress={() => void commitPriceImport()}>Save prices</Button>
                   {pricePreview.errors.length > 0 ? <Panel><Text>{pricePreview.errors.join(' · ')}</Text></Panel> : null}
                   <TableView aria-label="Monthly prices" density="compact">
@@ -379,7 +390,7 @@ export const UploadsPage = () => {
                       )}
                     </TableBody>
                   </TableView>
-                </View>
+                </div>
               ) : (
                 <EmptyState
                   title="No price file yet"
@@ -392,19 +403,21 @@ export const UploadsPage = () => {
 
             <Panel>
               <SectionTitle title="Restore from backup" subtitle="Choose a JSON backup to wipe and reload local tables." />
-              <FileTrigger acceptedFileTypes={["application/json"]} onSelect={(files) => { const file = files?.[0]; if (file) void restoreFromBackupFile(file) }}>
-                <Button variant="secondary">Restore backup</Button>
-              </FileTrigger>
-              <Button variant="secondary" onPress={() => void exportBackupFile()}>Export full backup</Button>
+              <div className={actionRowStyle}>
+                <FileTrigger acceptedFileTypes={["application/json"]} onSelect={(files) => { const file = files?.[0]; if (file) void restoreFromBackupFile(file) }}>
+                  <Button variant="secondary">Restore backup</Button>
+                </FileTrigger>
+                <Button variant="secondary" onPress={() => void exportBackupFile()}>Export full backup</Button>
+              </div>
             </Panel>
-          </View>
-        </View>
+          </div>
+        </div>
       ) : (
         <Panel>
           <SectionTitle title="Monthly prices" subtitle="Upload the monthly price CSV from the toolbar above." />
           <EmptyState title="Switch to Monthly prices" description="Use the Monthly prices button to open the price upload workspace." illustration={<EmptyStateIllustrations.upload />} />
         </Panel>
       )}
-    </View>
+    </div>
   )
 }

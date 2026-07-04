@@ -1,11 +1,12 @@
 import {useMemo, useState} from 'react'
-import {Button, Cell, Column, Heading, Item, NumberField, Picker, Row, SearchField, StatusLight, TableBody, TableHeader, TableView, Text, TextField, View} from '@adobe/react-spectrum'
+import {Button, Cell, Column, Heading, NumberField, Picker, PickerItem, Row, SearchField, StatusLight, TableBody, TableHeader, TableView, Text, TextField} from '@react-spectrum/s2'
+import {style, space} from '@react-spectrum/s2/style' with {type: 'macro'}
 import {usePortfolioData} from '../hooks/usePortfolioData'
 import {computeDedupeHash} from '../domain/dedupe'
 import {fifoTrace} from '../domain/fifo'
 import {downloadText} from '../lib/download'
 import {formatDateTime, formatMoney, formatQty} from '../lib/format'
-import {EmptyState, Panel, PageHeader, SectionTitle, EmptyStateIllustrations} from '../components/Ui'
+import {EmptyState, Panel, PageHeader, SectionTitle, EmptyStateIllustrations, pageStackStyle, pageTwoColumnGridStyle, secondaryTextStyle, toStyleString} from '../components/Ui'
 
 const categories = ['ALL', 'IMPORT', 'DEDUPE', 'FIFO', 'PRICE', 'ERROR', 'SYSTEM'] as const
 
@@ -19,6 +20,11 @@ type HashForm = {
   quantity: number
   price: number
 }
+
+const formGridStyle: string = style({display: 'grid', gap: space(12)})
+const tagListStyle: string = style({display: 'grid', gap: space(12), marginTop: space(12)})
+const detailStackStyle: string = style({display: 'grid', gap: space(12), marginTop: space(12)})
+const monoTextStyle: string = style({whiteSpace: 'pre-wrap', fontFamily: 'code'})
 
 export const DebugPage = () => {
   const {logs, transactions, files, securityById} = usePortfolioData()
@@ -49,10 +55,10 @@ export const DebugPage = () => {
   }, [hashForm])
 
   return (
-    <View UNSAFE_style={{display: 'grid', gap: '24px'}}>
+    <div className={pageStackStyle}>
       <PageHeader title="Debug" subtitle="Inspect logs, verify hashes, and trace FIFO lot consumption." />
 
-      <View UNSAFE_style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(24rem, 1fr))', gap: '20px'}}>
+      <div className={pageTwoColumnGridStyle}>
         <Panel>
           <SectionTitle
             title="System log"
@@ -65,7 +71,7 @@ export const DebugPage = () => {
             }
           />
           <Picker aria-label="Log category" selectedKey={filter} onSelectionChange={(key) => setFilter(key as CategoryFilter)}>
-            {categories.map((category) => <Item key={category}>{category}</Item>)}
+            {categories.map((category) => <PickerItem key={category}>{category}</PickerItem>)}
           </Picker>
           {filteredLogs.length === 0 ? (
             <EmptyState title="No logs yet" description="Imports, dedupe actions, FIFO traces, and validation errors will appear here." illustration={<EmptyStateIllustrations.generic />} />
@@ -80,7 +86,7 @@ export const DebugPage = () => {
                 {(log) => (
                   <Row key={log.id}>
                     <Cell>{formatDateTime(log.ts)}</Cell>
-                    <Cell><StatusLight variant={log.category === 'ERROR' ? 'negative' : log.category === 'DEDUPE' ? 'notice' : 'info'}>{log.category}</StatusLight></Cell>
+                    <Cell><StatusLight variant={log.category === 'ERROR' ? 'negative' : log.category === 'DEDUPE' ? 'notice' : 'informative'}>{log.category}</StatusLight></Cell>
                     <Cell>{log.message}</Cell>
                   </Row>
                 )}
@@ -95,13 +101,13 @@ export const DebugPage = () => {
           {searchResults.length === 0 ? (
             <EmptyState title="No results" description="Enter a date or symbol to inspect transaction source rows." illustration={<EmptyStateIllustrations.search />} />
           ) : (
-            <View UNSAFE_style={{display: 'grid', gap: '12px', marginTop: '12px'}}>
+            <div className={tagListStyle}>
               {searchResults.map((txn) => (
                 <Button key={txn.id} variant={txn.id === selectedTxn?.id ? 'accent' : 'secondary'} onPress={() => setSelectedTxnId(txn.id)}>
                   {securityById.get(txn.securityId)?.symbol ?? txn.securityId} · {txn.date} · {txn.type}
                 </Button>
               ))}
-            </View>
+            </div>
           )}
 
           {selectedTxn ? (
@@ -109,33 +115,33 @@ export const DebugPage = () => {
               <Heading level={4}>Transaction details</Heading>
               <Text>{selectedTxn.securityId}</Text>
               <Text>{selectedTxn.date} · Qty {formatQty(selectedTxn.quantity)} · Price {formatMoney(selectedTxn.price)}</Text>
-              <Text UNSAFE_style={{marginTop: '8px'}}>Source files: {(selectedTxn.sourceFileIds ?? []).map((fileId) => files.find((file) => file.id === fileId)?.filename ?? fileId).join(', ')}</Text>
-              <View UNSAFE_style={{display: 'grid', gap: '12px', marginTop: '12px'}}>
+              <Text styles={toStyleString(secondaryTextStyle)}>Source files: {(selectedTxn.sourceFileIds ?? []).map((fileId) => files.find((file) => file.id === fileId)?.filename ?? fileId).join(', ')}</Text>
+              <div className={detailStackStyle}>
                 {selectedTxn.rawRowRefs.map((ref) => (
                   <Panel key={`${ref.fileId}-${ref.lineNumber}`}>
                     <Text>{files.find((file) => file.id === ref.fileId)?.filename ?? ref.fileId} · line {ref.lineNumber}</Text>
-                    <Text UNSAFE_style={{whiteSpace: 'pre-wrap', fontFamily: 'var(--spectrum-code-font-family, monospace)'}}>{ref.rawText}</Text>
+                    <Text styles={toStyleString(monoTextStyle)}>{ref.rawText}</Text>
                   </Panel>
                 ))}
-              </View>
+              </div>
             </Panel>
           ) : null}
         </Panel>
-      </View>
+      </div>
 
-      <View UNSAFE_style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(24rem, 1fr))', gap: '20px'}}>
+      <div className={pageTwoColumnGridStyle}>
         <Panel>
           <SectionTitle title="Hash checker" subtitle="Uses the same dedupe hash algorithm as imports." />
-          <View UNSAFE_style={{display: 'grid', gap: '12px'}}>
+          <div className={formGridStyle}>
             <TextField label="Security ID" value={hashForm.securityId} onChange={(value) => setHashForm((current) => ({...current, securityId: value}))} />
             <TextField label="Account ID" value={hashForm.accountId} onChange={(value) => setHashForm((current) => ({...current, accountId: value}))} />
             <TextField label="Date" value={hashForm.date} onChange={(value) => setHashForm((current) => ({...current, date: value}))} />
             <Picker label="Type" selectedKey={hashForm.type} onSelectionChange={(key) => setHashForm((current) => ({...current, type: String(key) as HashForm['type']}))}>
-              {(['BUY', 'SELL', 'VEST', 'DIVIDEND', 'SPLIT', 'BONUS'] as const).map((type) => <Item key={type}>{type}</Item>)}
+              {(['BUY', 'SELL', 'VEST', 'DIVIDEND', 'SPLIT', 'BONUS'] as const).map((type) => <PickerItem key={type}>{type}</PickerItem>)}
             </Picker>
             <NumberField label="Quantity" value={hashForm.quantity} onChange={(value) => setHashForm((current) => ({...current, quantity: value ?? 0}))} />
             <NumberField label="Price" value={hashForm.price} onChange={(value) => setHashForm((current) => ({...current, price: value ?? 0}))} />
-          </View>
+          </div>
           <Panel>
             <Text>Canonical key</Text>
             <Heading level={4}>{canonicalKey}</Heading>
@@ -151,7 +157,7 @@ export const DebugPage = () => {
           ) : (
             <>
               <Picker aria-label="Sell transaction" selectedKey={selectedSellId} onSelectionChange={(key) => setSelectedSellId(String(key))} items={sellTxns}>
-                {(txn) => <Item key={txn.id}>{securityById.get(txn.securityId)?.symbol ?? txn.securityId} · {txn.date} · {formatQty(txn.quantity)}</Item>}
+                {(txn) => <PickerItem key={txn.id}>{securityById.get(txn.securityId)?.symbol ?? txn.securityId} · {txn.date} · {formatQty(txn.quantity)}</PickerItem>}
               </Picker>
               {trace.steps.length === 0 ? (
                 <EmptyState title="Choose a sell transaction" description="FIFO lot consumption details will appear here." illustration={<EmptyStateIllustrations.generic />} />
@@ -182,7 +188,7 @@ export const DebugPage = () => {
             </>
           )}
         </Panel>
-      </View>
-    </View>
+      </div>
+    </div>
   )
 }
