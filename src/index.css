@@ -49,6 +49,13 @@ a {
   flex-direction: column;
 }
 
+.empty-state__illustration {
+  width: 14.5rem;
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
 @media (max-width: 960px) {
   .app-layout__body {
     padding: 0.75rem;

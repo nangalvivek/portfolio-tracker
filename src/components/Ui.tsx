@@ -3,7 +3,7 @@ import {Content, Flex, Heading, IllustratedMessage, StatusLight, Text, View, Wel
 import NotFoundIllustration from '@spectrum-icons/illustrations/NotFound'
 import NoSearchResultsIllustration from '@spectrum-icons/illustrations/NoSearchResults'
 import UploadIllustration from '@spectrum-icons/illustrations/Upload'
-import {cloneElement, isValidElement, type ReactElement, type ReactNode} from 'react'
+import {cloneElement, type ReactElement, type ReactNode} from 'react'
 
 export const Panel = ({children}: {children: ReactNode}) => (
   <Well
@@ -72,9 +72,7 @@ export const EmptyState = ({
     }}
   >
     <IllustratedMessage>
-      {isValidElement(illustration ?? <NotFoundIllustration />)
-        ? cloneElement(illustration ?? <NotFoundIllustration />, {width: '232px', height: '150px'})
-        : illustration ?? <NotFoundIllustration />}
+      {cloneElement(illustration ?? <NotFoundIllustration />, {UNSAFE_className: 'empty-state__illustration'})}
       <Heading level={4}>{title}</Heading>
       <Content>{description}</Content>
     </IllustratedMessage>
