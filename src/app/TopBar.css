@@ -3,7 +3,7 @@
   inset-block-start: 0;
   z-index: 20;
   width: 100%;
-  background: var(--spectrum-global-color-gray-100);
+  background: var(--spectrum-global-color-gray-50);
 }
 
 .top-bar__inner {

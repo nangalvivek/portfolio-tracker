@@ -7,7 +7,7 @@ body,
 body {
   margin: 0;
   font-family: var(--spectrum-sans-font-family, system-ui, sans-serif);
-  background: var(--spectrum-global-color-gray-100);
+  background: var(--spectrum-global-color-gray-50);
   color: var(--spectrum-global-color-gray-900);
 }
 
@@ -24,7 +24,7 @@ a {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--spectrum-global-color-gray-100);
+  background: var(--spectrum-global-color-gray-50);
 }
 
 .app-layout__body {
@@ -32,7 +32,7 @@ a {
   flex: 1 1 auto;
   gap: 1rem;
   padding: 1rem;
-  background: var(--spectrum-global-color-gray-100);
+  background: var(--spectrum-global-color-gray-50);
 }
 
 .app-content {
@@ -42,7 +42,7 @@ a {
   padding: 1.5rem;
   border-radius: var(--spectrum-alias-border-radius-medium);
   border: 1px solid var(--spectrum-global-color-gray-200);
-  background: var(--spectrum-global-color-gray-50);
+  background: var(--spectrum-global-color-gray-100);
   overflow: hidden;
 }
 

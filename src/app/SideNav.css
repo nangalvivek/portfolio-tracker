@@ -3,7 +3,7 @@
   flex: 0 0 17.5rem;
   box-sizing: border-box;
   padding: 1rem 0.875rem 1rem 1rem;
-  background: var(--spectrum-global-color-gray-100);
+  background: var(--spectrum-global-color-gray-50);
   display: grid;
   gap: 0.875rem;
   align-content: start;
