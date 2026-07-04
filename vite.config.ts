@@ -2,6 +2,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import macros from 'unplugin-parcel-macros'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
@@ -27,11 +28,14 @@ export default defineConfig(({mode}) => ({
     ? {
         alias: [
           {find: '@adobe/react-spectrum', replacement: resolve(rootDir, 'test-support/react-spectrum-shim.tsx')},
+          {find: /^@react-spectrum\/s2\/illustrations(?:\/.*)?$/, replacement: resolve(rootDir, 'test-support/illustrations-shim.tsx')},
+          {find: /^@react-spectrum\/s2(?!\/illustrations)(?:\/.*)?$/, replacement: resolve(rootDir, 'test-support/react-spectrum-s2-shim.tsx')},
           {find: /^@spectrum-icons\/illustrations(?:\/.*)?$/, replacement: resolve(rootDir, 'test-support/illustrations-shim.tsx')},
         ],
       }
     : undefined,
   plugins: [
+    macros.vite(),
     stripCssInVitest,
     react(),
     VitePWA({
@@ -61,6 +65,19 @@ export default defineConfig(({mode}) => ({
       },
     }),
   ],
+  build: {
+    target: ['es2022'],
+    cssMinify: 'lightningcss',
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (/macro-(.*)\.css$/.test(id) || /@react-spectrum\/s2\/.*\.css$/.test(id)) {
+            return 's2-styles'
+          }
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',
@@ -68,7 +85,7 @@ export default defineConfig(({mode}) => ({
     css: true,
     server: {
       deps: {
-        inline: ['@adobe/react-spectrum', '@spectrum-icons/workflow', '@spectrum-icons/illustrations'],
+        inline: ['@adobe/react-spectrum', '@react-spectrum/s2', '@spectrum-icons/workflow', '@spectrum-icons/illustrations'],
       },
     },
   },

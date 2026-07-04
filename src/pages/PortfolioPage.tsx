@@ -1,5 +1,9 @@
 import {useEffect, useMemo, useState} from 'react'
 import {Button, Flex, Heading, SearchField, Text, View, TableView, TableHeader, Column, TableBody, Row, Cell, StatusLight} from '@adobe/react-spectrum'
+import {Button as S2Button} from '@react-spectrum/s2/Button'
+import {ButtonGroup as S2ButtonGroup} from '@react-spectrum/s2/ButtonGroup'
+import {Content as S2Content, Heading as S2Heading, IllustratedMessage as S2IllustratedMessage} from '@react-spectrum/s2/IllustratedMessage'
+import DropToUploadIllustration from '@react-spectrum/s2/illustrations/gradient/generic1/DropToUpload'
 import {useNavigate} from 'react-router-dom'
 import {usePortfolioData} from '../hooks/usePortfolioData'
 import {formatMoney, formatQty} from '../lib/format'
@@ -34,27 +38,30 @@ export const PortfolioPage = () => {
   const selectedHolding = filteredHoldings.find((holding) => `${holding.securityId}|${holding.accountId}` === selectedHoldingId)
 
   return (
-    <View UNSAFE_style={{display: 'grid', gap: '24px', minHeight: '100%'}}>
+    <View UNSAFE_style={{display: 'flex', flexDirection: 'column', gap: '24px', minHeight: '100%', flex: '1 1 auto'}}>
       <PageHeader title="Portfolio" subtitle="Holdings, average cost, and FIFO open lots." />
 
       {holdings.length === 0 ? (
-        <View
-          UNSAFE_style={{
+        <div
+          style={{
             flex: '1 1 auto',
             minHeight: '0',
             width: '100%',
-            display: 'grid',
-            placeItems: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             paddingBlock: '2rem',
           }}
         >
-          <EmptyState
-            title="No holdings yet"
-            description="Upload a tradebook to populate holdings and open lots."
-            illustration={<EmptyStateIllustrations.generic />}
-            action={<Button variant="accent" onPress={() => navigate('/uploads')}>Upload tradebook</Button>}
-          />
-        </View>
+          <S2IllustratedMessage size="L">
+            <DropToUploadIllustration />
+            <S2Heading>No holdings yet</S2Heading>
+            <S2Content>Upload a tradebook to populate holdings and open lots.</S2Content>
+            <S2ButtonGroup>
+              <S2Button variant="accent" onPress={() => navigate('/uploads')}>Upload tradebook</S2Button>
+            </S2ButtonGroup>
+          </S2IllustratedMessage>
+        </div>
       ) : (
         <Panel>
           <View UNSAFE_style={{display: 'grid', gap: '20px'}}>

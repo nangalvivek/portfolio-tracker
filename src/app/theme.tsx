@@ -1,6 +1,7 @@
 /* oxlint-disable react/only-export-components */
 import {createContext, useContext, useEffect, useMemo, useState, type ReactNode} from 'react'
 import {Provider, defaultTheme} from '@adobe/react-spectrum'
+import {Provider as S2Provider} from '@react-spectrum/s2/Provider'
 
 export type ColorScheme = 'light' | 'dark'
 
@@ -34,6 +35,9 @@ export const AppThemeProvider = ({children}: {children: ReactNode}) => {
 
   useEffect(() => {
     window.localStorage.setItem(storageKey, colorScheme)
+    document.documentElement.dataset.colorScheme = colorScheme
+    document.documentElement.dataset.background = 'base'
+    document.documentElement.style.colorScheme = colorScheme
   }, [colorScheme])
 
   const value = useMemo<AppThemeContextValue>(
@@ -48,7 +52,9 @@ export const AppThemeProvider = ({children}: {children: ReactNode}) => {
   return (
     <AppThemeContext.Provider value={value}>
       <Provider theme={defaultTheme} colorScheme={colorScheme}>
-        {children}
+        <S2Provider colorScheme={colorScheme} background="base">
+          {children}
+        </S2Provider>
       </Provider>
     </AppThemeContext.Provider>
   )
