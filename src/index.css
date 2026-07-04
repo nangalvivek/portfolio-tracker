@@ -44,6 +44,8 @@ a {
   border: 1px solid var(--spectrum-global-color-gray-200);
   background: var(--spectrum-global-color-gray-100);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 @media (max-width: 960px) {

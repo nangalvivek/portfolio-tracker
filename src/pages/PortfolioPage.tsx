@@ -34,11 +34,20 @@ export const PortfolioPage = () => {
   const selectedHolding = filteredHoldings.find((holding) => `${holding.securityId}|${holding.accountId}` === selectedHoldingId)
 
   return (
-    <View UNSAFE_style={{display: 'grid', gap: '24px'}}>
+    <View UNSAFE_style={{display: 'grid', gap: '24px', minHeight: '100%'}}>
       <PageHeader title="Portfolio" subtitle="Holdings, average cost, and FIFO open lots." />
 
       {holdings.length === 0 ? (
-        <View UNSAFE_style={{display: 'grid', justifyItems: 'center', paddingBlockStart: 'size-800', paddingBlockEnd: 'size-800'}}>
+        <View
+          UNSAFE_style={{
+            flex: '1 1 auto',
+            minHeight: '0',
+            width: '100%',
+            display: 'grid',
+            placeItems: 'center',
+            paddingBlock: '2rem',
+          }}
+        >
           <EmptyState
             title="No holdings yet"
             description="Upload a tradebook to populate holdings and open lots."
