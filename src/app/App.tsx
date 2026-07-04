@@ -1,11 +1,11 @@
-import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { Layout } from './Layout'
-import { TaxYearProvider } from './TaxYearContext'
-import { DashboardPage } from '../pages/DashboardPage'
-import { PortfolioPage } from '../pages/PortfolioPage'
-import { UploadsPage } from '../pages/UploadsPage'
-import { TaxPage } from '../pages/TaxPage'
-import { DebugPage } from '../pages/DebugPage'
+import {HashRouter, Navigate, Route, Routes} from 'react-router-dom'
+import {Layout} from './Layout'
+import {TaxYearProvider} from './TaxYearContext'
+import {DashboardPage} from '../pages/DashboardPage'
+import {PortfolioPage} from '../pages/PortfolioPage'
+import {UploadsPage} from '../pages/UploadsPage'
+import {TaxPage} from '../pages/TaxPage'
+import {DebugPage} from '../pages/DebugPage'
 
 export const App = () => (
   <TaxYearProvider>

@@ -1,171 +1,269 @@
-import { useMemo, useState } from 'react'
-import { usePortfolioData } from '../hooks/usePortfolioData'
-import { useTaxYear } from '../app/taxYearContext'
-import { buildItrBundle } from '../domain/export/itr'
-import { downloadText } from '../lib/download'
-import { formatMoney, formatQty } from '../lib/format'
-import { scheduleFa } from '../domain/tax/fa'
-import { scheduleFsi } from '../domain/tax/fsi'
-import { scheduleTr } from '../domain/tax/tr'
-import { scheduleCg } from '../domain/tax/cg'
-import { fyOf } from '../domain/dates'
-import { Card, Badge, Button, EmptyState, SectionTitle, Select } from '../components/Ui'
+import {useEffect, useMemo, useState} from 'react'
+import {Button, Column, Heading, Item, Picker, TabList, TabPanels, Tabs, TableBody, TableHeader, TableView, Cell, Row, Text, View} from '@adobe/react-spectrum'
+import {useSearchParams} from 'react-router-dom'
+import {usePortfolioData} from '../hooks/usePortfolioData'
+import {scheduleFa} from '../domain/tax/fa'
+import {scheduleFsi} from '../domain/tax/fsi'
+import {scheduleTr} from '../domain/tax/tr'
+import {scheduleCg, type ScheduleCgRow} from '../domain/tax/cg'
+import {buildItrBundle} from '../domain/export/itr'
+import {toCsv} from '../domain/export'
+import {downloadText} from '../lib/download'
+import {formatDate, formatMoney, formatQty} from '../lib/format'
+import {useTaxYear} from '../app/taxYearContext'
+import {EmptyState, Panel, SectionTitle} from '../components/Ui'
 
-const tabs = [
-  { key: 'fa', label: 'FA – A3', period: 'Calendar year' },
-  { key: 'fsi', label: 'FSI', period: 'Calendar year' },
-  { key: 'tr', label: 'TR', period: 'Calendar year' },
-  { key: 'cg', label: 'CG', period: 'Financial year' },
-] as const
+type TabKey = 'fa' | 'fsi' | 'tr' | 'cg'
 
-type TabKey = (typeof tabs)[number]['key']
+const tabLabels: Record<TabKey, string> = {
+  fa: 'FA – A3',
+  fsi: 'FSI',
+  tr: 'TR',
+  cg: 'CG',
+}
+
+const years = Array.from({length: 10}, (_, index) => new Date().getFullYear() - index)
 
 export const TaxPage = () => {
-  const { taxYear, setTaxYear } = useTaxYear()
-  const { transactions, prices } = usePortfolioData()
-  const [tab, setTab] = useState<TabKey>('fa')
-  const fy = fyOf(`${taxYear}-04-01`)
+  const {taxYear, setTaxYear} = useTaxYear()
+  const {transactions, prices} = usePortfolioData()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [tab, setTab] = useState<TabKey>((searchParams.get('tab') as TabKey) ?? 'fa')
+  const [selectedFaId, setSelectedFaId] = useState('')
+
+  useEffect(() => {
+    const queryYear = Number(searchParams.get('year'))
+    if (Number.isFinite(queryYear) && queryYear > 2000) setTaxYear(queryYear)
+    const queryTab = searchParams.get('tab') as TabKey | null
+    if (queryTab && queryTab in tabLabels) setTab(queryTab)
+  }, [searchParams, setTaxYear])
 
   const faRows = useMemo(() => scheduleFa(transactions, prices, taxYear), [prices, taxYear, transactions])
   const fsiRows = useMemo(() => scheduleFsi(transactions, taxYear), [taxYear, transactions])
   const trRows = useMemo(() => scheduleTr(fsiRows), [fsiRows])
-  const cgResult = useMemo(() => scheduleCg(transactions, fy), [fy, transactions])
+  const cgResult = useMemo(() => scheduleCg(transactions, `FY${taxYear - 1}-${String(taxYear).slice(-2)}`), [taxYear, transactions])
   const bundle = useMemo(() => buildItrBundle(transactions, prices, taxYear), [prices, taxYear, transactions])
+
+  useEffect(() => {
+    if (!selectedFaId && faRows[0]) setSelectedFaId(faRows[0].securityId)
+    if (selectedFaId && !faRows.some((row) => row.securityId === selectedFaId)) setSelectedFaId(faRows[0]?.securityId ?? '')
+  }, [faRows, selectedFaId])
+
+  const selectedFaRow = faRows.find((row) => row.securityId === selectedFaId)
 
   const exportCurrent = (kind: 'csv' | 'json') => {
     const payload = tab === 'fa' ? faRows : tab === 'fsi' ? fsiRows : tab === 'tr' ? trRows : cgResult.rows
     const filename = `${tab}-${taxYear}.${kind}`
     if (kind === 'json') downloadText(filename, JSON.stringify(payload, null, 2))
-    if (kind === 'csv') {
-      const headers = payload.length > 0 ? Object.keys(payload[0] as unknown as Record<string, unknown>) : []
-      const rows = payload as unknown as Array<Record<string, unknown>>
-      const csv = [headers.join(',')].concat(rows.map((row) => headers.map((header) => JSON.stringify(row[header] ?? '')).join(','))).join('\n')
-      downloadText(filename, csv, 'text/csv')
-    }
+    if (kind === 'csv') downloadText(filename, toCsv(payload as unknown as Array<Record<string, unknown>>), 'text/csv')
   }
 
-  const renderFa = () => (
-    faRows.length === 0 ? <EmptyState title="No FA assets" description="Upload foreign holdings and monthly prices to generate Schedule FA rows." /> : (
-      <div className="space-y-3">
-        {faRows.map((row) => (
-          <details key={row.securityId} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <summary className="cursor-pointer list-none">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="font-medium text-slate-900">{row.entityName}</div>
-                  <div className="text-sm text-slate-500">{row.country} · {row.natureOfAsset}</div>
-                </div>
-                <div className="text-sm text-slate-600">Peak {formatMoney(row.peakValueDuringYearInr)}</div>
-              </div>
-            </summary>
-            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500">
-                  <tr><th className="px-3 py-2 text-left">Month</th><th className="px-3 py-2 text-right">Price INR</th><th className="px-3 py-2 text-right">Value INR</th></tr>
-                </thead>
-                <tbody>
-                  {row.monthlyPriceSeries.map((point) => <tr key={point.month} className={point.valueInr === row.peakValueDuringYearInr ? 'bg-emerald-50' : ''}><td className="px-3 py-2">{point.month}</td><td className="px-3 py-2 text-right">{formatMoney(point.priceInr)}</td><td className="px-3 py-2 text-right">{formatMoney(point.valueInr)}</td></tr>)}
-                </tbody>
-              </table>
-            </div>
-          </details>
-        ))}
-      </div>
-    )
-  )
-
-  const renderFsi = () => (
-    fsiRows.length === 0 ? <EmptyState title="No foreign dividends" description="Dividend transactions in the selected calendar year appear here." /> : (
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2 text-left">Country</th><th className="px-3 py-2 text-right">Income INR</th><th className="px-3 py-2 text-right">Tax paid abroad</th><th className="px-3 py-2 text-left">DTAA article</th></tr></thead>
-          <tbody>{fsiRows.map((row) => <tr key={row.country}><td className="px-3 py-2">{row.country}</td><td className="px-3 py-2 text-right">{formatMoney(row.incomeInr)}</td><td className="px-3 py-2 text-right">{formatMoney(row.taxPaidAbroadInr)}</td><td className="px-3 py-2">{row.dtaaArticle}</td></tr>)}</tbody>
-        </table>
-      </div>
-    )
-  )
-
-  const renderTr = () => (
-    trRows.length === 0 ? <EmptyState title="No foreign tax credit rows" description="TR mirrors the FSI rows for foreign tax credit relief." /> : (
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2 text-left">Country</th><th className="px-3 py-2 text-right">Foreign tax paid</th><th className="px-3 py-2 text-right">Relief claimed</th></tr></thead>
-          <tbody>{trRows.map((row) => <tr key={row.country}><td className="px-3 py-2">{row.country}</td><td className="px-3 py-2 text-right">{formatMoney(row.foreignTaxPaidInr)}</td><td className="px-3 py-2 text-right">{formatMoney(row.reliefClaimedInr)}</td></tr>)}</tbody>
-        </table>
-      </div>
-    )
-  )
-
-  const renderCg = () => (
-    cgResult.rows.length === 0 ? <EmptyState title="No capital gains yet" description="Sell transactions in the selected financial year appear here." /> : (
-      <div className="space-y-4">
-        <Card>
-          <div className="grid gap-3 md:grid-cols-4 text-sm">
-            <div><div className="text-slate-500">India STCG</div><div className="font-semibold">{formatMoney(cgResult.totals.stcgIndia)}</div></div>
-            <div><div className="text-slate-500">India LTCG</div><div className="font-semibold">{formatMoney(cgResult.totals.ltcgIndia)}</div></div>
-            <div><div className="text-slate-500">Foreign STCG</div><div className="font-semibold">{formatMoney(cgResult.totals.stcgForeign)}</div></div>
-            <div><div className="text-slate-500">Foreign LTCG</div><div className="font-semibold">{formatMoney(cgResult.totals.ltcgForeign)}</div></div>
-          </div>
-        </Card>
-        <div className="space-y-3">
-          {cgResult.rows.map((row) => (
-            <Card key={row.securityId + row.sellDate}>
-              <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                <div>
-                  <div className="font-medium text-slate-900">{row.securityId}</div>
-                  <div className="text-slate-500">{row.country} · {row.sellDate} · {row.term} · {row.holdingPeriodDays} days</div>
-                </div>
-                <div className="text-right text-slate-600">Gain {formatMoney(row.gainInr)}</div>
-              </div>
-              <div className="mt-3 grid gap-3 md:grid-cols-3 text-sm text-slate-600">
-                <div>Qty {formatQty(row.sellQuantity)}</div>
-                <div>Proceeds {formatMoney(row.proceedsInr)}</div>
-                <div>Cost {formatMoney(row.costInr)}</div>
-              </div>
-              <div className="mt-3 grid gap-2 md:grid-cols-2 text-sm">
-                <div className="rounded-xl bg-emerald-50 p-3 text-emerald-800">STCG {formatMoney(row.stcgInr)}</div>
-                <div className="rounded-xl bg-indigo-50 p-3 text-indigo-800">LTCG {formatMoney(row.ltcgInr)}</div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-    )
-  )
-
-  const body = tab === 'fa' ? renderFa() : tab === 'fsi' ? renderFsi() : tab === 'tr' ? renderTr() : renderCg()
-  const periodLabel = tab === 'cg' ? fy : String(taxYear)
-
   return (
-    <div className="space-y-6">
+    <View UNSAFE_style={{display: 'grid', gap: '20px'}}>
       <SectionTitle
         title="Tax"
-        subtitle={`Selected year: ${taxYear} · ${tab === 'cg' ? `Financial year ${fy}` : 'Calendar year'}.`}
-        actions={<div className="flex flex-col gap-2 md:flex-row"><Select value={String(taxYear)} onChange={(event) => setTaxYear(Number(event.target.value))} className="w-36">{Array.from({ length: 10 }, (_, index) => currentYearOption(index)).map((year) => <option key={year} value={year}>{year}</option>)}</Select><Button variant="secondary" onClick={() => void exportCurrent('csv')}>Export CSV</Button><Button onClick={() => void exportCurrent('json')}>Export JSON</Button></div>}
+        subtitle="FA / FSI use calendar year. CG / TR use the financial-year view derived from the selected tax year."
+        actions={
+          <>
+            <Picker aria-label="Tax year" selectedKey={String(taxYear)} onSelectionChange={(key) => setTaxYear(Number(key))}>
+              {years.map((year) => <Item key={String(year)}>{year}</Item>)}
+            </Picker>
+            <Button variant="secondary" onPress={() => exportCurrent('csv')}>Export CSV</Button>
+            <Button variant="accent" onPress={() => exportCurrent('json')}>Export JSON</Button>
+            <Button variant="secondary" onPress={() => downloadText(`itr-${taxYear}-bundle.json`, JSON.stringify(bundle, null, 2))}>Export ITR JSON bundle</Button>
+          </>
+        }
       />
 
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((item) => (
-          <button key={item.key} type="button" onClick={() => setTab(item.key)} className={`rounded-full px-4 py-2 text-sm font-medium ${tab === item.key ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 shadow-sm ring-1 ring-slate-200'}`}>
-            {item.label} <span className="ml-2 text-xs opacity-70">{item.period}</span>
-          </button>
-        ))}
-        <Badge tone="slate">{periodLabel}</Badge>
-      </div>
+      <Tabs selectedKey={tab} onSelectionChange={(key) => { const next = key as TabKey; setTab(next); setSearchParams({tab: next, year: String(taxYear)}) }}>
+        <TabList aria-label="Tax schedules">
+          {Object.entries(tabLabels).map(([key, label]) => <Item key={key}>{label}</Item>)}
+        </TabList>
+        <TabPanels>
+          <Item key="fa">
+            <Panel>
+              <SectionTitle title={`FA – A3 (${taxYear})`} subtitle="Foreign assets held during the calendar year." />
+              {faRows.length === 0 ? (
+                <EmptyState title="No FA rows yet" description="Foreign securities held during the selected calendar year will appear here." />
+              ) : (
+                <View UNSAFE_style={{display: 'grid', gap: '16px'}}>
+                  <TableView aria-label="FA schedule" density="compact">
+                    <TableHeader>
+                      <Column>Country</Column>
+                      <Column>Entity Name</Column>
+                      <Column>Nature of Asset</Column>
+                      <Column>Date of Acquisition</Column>
+                      <Column align="end">Initial Investment INR</Column>
+                      <Column align="end">Peak Value During Year INR</Column>
+                      <Column align="end">Closing Value INR</Column>
+                      <Column align="end">Gross Income INR</Column>
+                      <Column>Action</Column>
+                    </TableHeader>
+                    <TableBody items={faRows}>
+                      {(row) => (
+                        <Row key={row.securityId}>
+                          <Cell>{row.country}</Cell>
+                          <Cell>{row.entityName}</Cell>
+                          <Cell>{row.natureOfAsset}</Cell>
+                          <Cell>{formatDate(row.dateOfAcquisition)}</Cell>
+                          <Cell>{formatMoney(row.initialInvestmentInr)}</Cell>
+                          <Cell>{formatMoney(row.peakValueDuringYearInr)}</Cell>
+                          <Cell>{formatMoney(row.closingValueInr)}</Cell>
+                          <Cell>{formatMoney(row.grossIncomeInr)}</Cell>
+                          <Cell><Button variant="secondary" onPress={() => setSelectedFaId(row.securityId)}>Monthly view</Button></Cell>
+                        </Row>
+                      )}
+                    </TableBody>
+                  </TableView>
+                  {selectedFaRow ? (
+                    <Panel>
+                      <Heading level={4}>Monthly prices used to compute the peak</Heading>
+                      <TableView aria-label="FA monthly price series" density="compact">
+                        <TableHeader>
+                          <Column>Month</Column>
+                          <Column align="end">Held qty</Column>
+                          <Column align="end">Price native</Column>
+                          <Column align="end">FX</Column>
+                          <Column align="end">Price INR</Column>
+                          <Column align="end">Value INR</Column>
+                        </TableHeader>
+                        <TableBody items={selectedFaRow.monthlyPriceSeries}>
+                          {(point) => (
+                            <Row key={point.month}>
+                              <Cell>{point.month}</Cell>
+                              <Cell>{point.heldQty}</Cell>
+                              <Cell>{point.priceNative}</Cell>
+                              <Cell>{point.fxRate}</Cell>
+                              <Cell>{formatMoney(point.priceInr)}</Cell>
+                              <Cell>{formatMoney(point.valueInr)}</Cell>
+                            </Row>
+                          )}
+                        </TableBody>
+                      </TableView>
+                    </Panel>
+                  ) : null}
+                </View>
+              )}
+            </Panel>
+          </Item>
 
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium text-slate-900">{tab.toUpperCase()} summary</div>
-            <p className="text-sm text-slate-500">{tab === 'cg' ? `Financial year ${fy}` : `Calendar year ${taxYear}`}</p>
-          </div>
-          <Button variant="ghost" onClick={() => downloadText(`${tab}-${taxYear}-bundle.json`, JSON.stringify(bundle, null, 2))}>Export ITR JSON bundle</Button>
-        </div>
-      </Card>
+          <Item key="fsi">
+            <Panel>
+              <SectionTitle title={`FSI (${taxYear})`} subtitle="Foreign dividends grouped by country." />
+              {fsiRows.length === 0 ? (
+                <EmptyState title="No FSI rows yet" description="Dividend transactions in the selected calendar year will appear here." />
+              ) : (
+                <TableView aria-label="FSI schedule" density="compact">
+                  <TableHeader>
+                    <Column>Country</Column>
+                    <Column align="end">Income INR</Column>
+                    <Column align="end">Tax paid abroad INR</Column>
+                    <Column>DTAA article</Column>
+                    <Column>Security IDs</Column>
+                  </TableHeader>
+                  <TableBody items={fsiRows}>
+                    {(row) => (
+                      <Row key={row.country}>
+                        <Cell>{row.country}</Cell>
+                        <Cell>{formatMoney(row.incomeInr)}</Cell>
+                        <Cell>{formatMoney(row.taxPaidAbroadInr)}</Cell>
+                        <Cell>{row.dtaaArticle}</Cell>
+                        <Cell>{row.securityIds.join(', ')}</Cell>
+                      </Row>
+                    )}
+                  </TableBody>
+                </TableView>
+              )}
+            </Panel>
+          </Item>
 
-      {body}
-    </div>
+          <Item key="tr">
+            <Panel>
+              <SectionTitle title={`TR (${taxYear})`} subtitle="Foreign tax credit relief summary." />
+              {trRows.length === 0 ? (
+                <EmptyState title="No TR rows yet" description="Foreign tax paid will be summarized here based on FSI rows." />
+              ) : (
+                <TableView aria-label="TR schedule" density="compact">
+                  <TableHeader>
+                    <Column>Country</Column>
+                    <Column align="end">Foreign tax paid INR</Column>
+                    <Column align="end">Relief claimed INR</Column>
+                  </TableHeader>
+                  <TableBody items={trRows}>
+                    {(row) => (
+                      <Row key={row.country}>
+                        <Cell>{row.country}</Cell>
+                        <Cell>{formatMoney(row.foreignTaxPaidInr)}</Cell>
+                        <Cell>{formatMoney(row.reliefClaimedInr)}</Cell>
+                      </Row>
+                    )}
+                  </TableBody>
+                </TableView>
+              )}
+            </Panel>
+          </Item>
+
+          <Item key="cg">
+            <View UNSAFE_style={{display: 'grid', gap: '20px'}}>
+              <Panel>
+                <SectionTitle title={`CG (${cgResult.rows[0]?.fy ?? `FY${taxYear - 1}-${String(taxYear).slice(-2)}`})`} subtitle="Capital gains for the selected financial year." />
+                <View UNSAFE_style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(10rem, 1fr))', gap: '12px'}}>
+                  {[
+                    ['STCG India', formatMoney(cgResult.totals.stcgIndia)],
+                    ['LTCG India', formatMoney(cgResult.totals.ltcgIndia)],
+                    ['STCG Foreign', formatMoney(cgResult.totals.stcgForeign)],
+                    ['LTCG Foreign', formatMoney(cgResult.totals.ltcgForeign)],
+                  ].map(([label, value]) => (
+                    <Panel key={label}>
+                      <Text UNSAFE_style={{color: 'var(--spectrum-alias-text-color-secondary)'}}>{label}</Text>
+                      <Heading level={3} marginTop="size-100" marginBottom={0}>{value}</Heading>
+                    </Panel>
+                  ))}
+                </View>
+              </Panel>
+
+              {(['STCG', 'LTCG'] as const).map((term) => {
+                const rows = cgResult.rows.filter((row) => row.term === term)
+                return (
+                  <Panel key={term}>
+                    <SectionTitle title={`${term} rows`} subtitle="Per-sell rows split by lot classification." />
+                    {rows.length === 0 ? (
+                      <EmptyState title={`No ${term} rows`} description={`No ${term} disposals were realized in this financial year.`} />
+                    ) : (
+                      <TableView aria-label={`${term} capital gains`} density="compact">
+                        <TableHeader>
+                          <Column>Sell date</Column>
+                          <Column>Security</Column>
+                          <Column>Country</Column>
+                          <Column align="end">Qty</Column>
+                          <Column align="end">Proceeds INR</Column>
+                          <Column align="end">Cost INR</Column>
+                          <Column align="end">Gain INR</Column>
+                          <Column>Holding days</Column>
+                        </TableHeader>
+                        <TableBody items={rows}>
+                          {(row: ScheduleCgRow) => (
+                            <Row key={`${row.securityId}-${row.sellDate}-${row.accountId}`}>
+                              <Cell>{row.sellDate}</Cell>
+                              <Cell>{row.securityId}</Cell>
+                              <Cell>{row.country}</Cell>
+                              <Cell>{formatQty(row.sellQuantity)}</Cell>
+                              <Cell>{formatMoney(row.proceedsInr)}</Cell>
+                              <Cell>{formatMoney(row.costInr)}</Cell>
+                              <Cell>{formatMoney(row.gainInr)}</Cell>
+                              <Cell>{row.holdingPeriodDays}</Cell>
+                            </Row>
+                          )}
+                        </TableBody>
+                      </TableView>
+                    )}
+                  </Panel>
+                )
+              })}
+            </View>
+          </Item>
+        </TabPanels>
+      </Tabs>
+    </View>
   )
 }
-
-const currentYearOption = (offset: number): number => new Date().getFullYear() - offset

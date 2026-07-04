@@ -1,13 +1,14 @@
-import { MemoryRouter } from 'react-router-dom'
-import type { ReactElement } from 'react'
-import { render, screen } from '@testing-library/react'
-import { TaxYearProvider } from '../../app/TaxYearContext'
-import { DashboardPage } from '../DashboardPage'
-import { PortfolioPage } from '../PortfolioPage'
-import { UploadsPage } from '../UploadsPage'
-import { TaxPage } from '../TaxPage'
-import { DebugPage } from '../DebugPage'
-import { db } from '../../db/db'
+import type {ReactElement} from 'react'
+import {render, screen} from '@testing-library/react'
+import {Provider, defaultTheme} from '@adobe/react-spectrum'
+import {MemoryRouter} from 'react-router-dom'
+import {TaxYearProvider} from '../../app/TaxYearContext'
+import {DashboardPage} from '../DashboardPage'
+import {PortfolioPage} from '../PortfolioPage'
+import {UploadsPage} from '../UploadsPage'
+import {TaxPage} from '../TaxPage'
+import {DebugPage} from '../DebugPage'
+import {db} from '../../db/db'
 
 afterEach(async () => {
   await Promise.all([
@@ -22,9 +23,11 @@ afterEach(async () => {
 
 const renderPage = (element: ReactElement): void => {
   render(
-    <MemoryRouter>
-      <TaxYearProvider>{element}</TaxYearProvider>
-    </MemoryRouter>,
+    <Provider theme={defaultTheme}>
+      <MemoryRouter>
+        <TaxYearProvider>{element}</TaxYearProvider>
+      </MemoryRouter>
+    </Provider>,
   )
 }
 

@@ -1,24 +1,19 @@
-import { useMemo, useRef, useState } from 'react'
-import { db } from '../db/db'
-import { parserRegistry, type ParsedImport } from '../domain/parsers'
-import { importTransactions, previewImportTransactions, type ImportCandidate, type ImportResult } from '../domain/dedupe'
-import { parseMonthlyPricesCsv, missingMonthsForSecurity } from '../domain/prices'
-import type { Account, MonthlyPrice, Security, Transaction } from '../domain/types'
-import { downloadBlob } from '../lib/download'
-import { formatDateTime, formatMoney, formatQty } from '../lib/format'
-import { usePortfolioData } from '../hooks/usePortfolioData'
-import { Badge, Button, Card, EmptyState, SectionTitle } from '../components/Ui'
-
-const tradeSamples = [
-  { name: 'Zerodha tradebook sample', file: '/samples/zerodha-tradebook.csv' },
-  { name: 'IBKR flex trades sample', file: '/samples/ibkr-flex-trades.csv' },
-  { name: 'E*Trade RSU sample', file: '/samples/etrade-rsu.csv' },
-]
-
-const priceSamples = [{ name: 'Monthly prices sample', file: '/samples/monthly-prices.csv' }]
+import {useEffect, useMemo, useState} from 'react'
+import {Button, Column, DropZone, FileTrigger, Flex, Heading, Row, Cell, StatusLight, TableBody, TableHeader, TableView, Text, View} from '@adobe/react-spectrum'
+import {useSearchParams} from 'react-router-dom'
+import {db} from '../db/db'
+import {parserRegistry} from '../domain/parsers'
+import {importTransactions, previewImportTransactions, type ImportCandidate, type ImportResult} from '../domain/dedupe'
+import {parseMonthlyPricesCsv, missingMonthsForSecurity} from '../domain/prices'
+import type {MonthlyPrice} from '../domain/types'
+import {exportBackup, restoreBackup} from '../domain/export'
+import {downloadBlob, downloadText} from '../lib/download'
+import {formatDateTime, formatMoney, formatQty} from '../lib/format'
+import {usePortfolioData} from '../hooks/usePortfolioData'
+import {EmptyState, Panel, SectionTitle} from '../components/Ui'
 
 type ImportMode = 'trades' | 'prices'
-type ViewMode = 'raw' | 'parsed' | 'duplicates'
+type PreviewTab = 'raw' | 'parsed' | 'duplicates'
 
 interface TradePreviewState {
   fileId: string
@@ -26,381 +21,380 @@ interface TradePreviewState {
   text: string
   blob: Blob
   sha256: string
-  parsed: ParsedImport
   candidates: ImportCandidate[]
   preview: ImportResult
 }
 
 interface PricePreviewState {
   filename: string
-  text: string
-  rows: Array<MonthlyPrice & { warnings: string[] }>
-  warnings: string[]
+  rows: Array<MonthlyPrice & {warnings: string[]}>
+  errors: string[]
 }
+
+const tradeSamples = [
+  {name: 'Zerodha tradebook sample', file: 'samples/zerodha-tradebook.csv'},
+  {name: 'IBKR flex trades sample', file: 'samples/ibkr-flex-trades.csv'},
+  {name: 'E*Trade RSU sample', file: 'samples/etrade-rsu.csv'},
+] as const
+
+const priceSamples = [{name: 'Monthly prices sample', file: 'samples/monthly-prices.csv'}] as const
 
 const sha256Hex = async (buffer: ArrayBuffer): Promise<string> => {
   const digest = await crypto.subtle.digest('SHA-256', buffer)
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
-const readFile = async (file: File): Promise<{ text: string; sha256: string; blob: Blob }> => {
+const readFile = async (file: File): Promise<{text: string; blob: Blob; sha256: string}> => {
   const [text, buffer] = await Promise.all([file.text(), file.arrayBuffer()])
-  return { text, sha256: await sha256Hex(buffer), blob: file.slice(0, file.size, file.type || 'text/csv') }
+  return {text, blob: file.slice(0, file.size, file.type || 'text/csv'), sha256: await sha256Hex(buffer)}
 }
 
 const splitLines = (text: string): string[] => text.split(/\r?\n/)
 
-const candidateRowsFromParsed = (fileId: string, text: string, parsed: ParsedImport): ImportCandidate[] => {
-  const lines = splitLines(text)
-  return parsed.transactions.map((txn, index) => ({
-    ...txn,
-    sourceFileId: fileId,
-    rawRow: {
-      lineNumber: index + 2,
-      rawText: lines[index + 1] ?? '',
-    },
-  }))
-}
-
-const upsertSecurityAccounts = async (parsed: ParsedImport): Promise<void> => {
-  await db.transaction('rw', [db.securities, db.accounts], async () => {
-    await db.securities.bulkPut(parsed.securities)
-    await db.accounts.bulkPut(parsed.accounts)
-  })
-}
-
-const fileNameById = (files: Array<{ id: string; filename: string }>): Map<string, string> => new Map(files.map((file) => [file.id, file.filename]))
+const appendBasePath = (file: string): string => `${import.meta.env.BASE_URL}${file}`
 
 export const UploadsPage = () => {
-  const { files, transactions, securityById } = usePortfolioData()
-  const [mode, setMode] = useState<ImportMode>('trades')
-  const [view, setView] = useState<ViewMode>('raw')
+  const {files, transactions, securityById} = usePortfolioData()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [mode, setMode] = useState<ImportMode>(searchParams.get('mode') === 'prices' ? 'prices' : 'trades')
+  const [tab, setTab] = useState<PreviewTab>('raw')
   const [tradePreview, setTradePreview] = useState<TradePreviewState | null>(null)
   const [pricePreview, setPricePreview] = useState<PricePreviewState | null>(null)
-  const [selectedRow, setSelectedRow] = useState<number>(0)
-  const [message, setMessage] = useState<string>('')
-  const tradeInputRef = useRef<HTMLInputElement | null>(null)
-  const priceInputRef = useRef<HTMLInputElement | null>(null)
-  const restoreInputRef = useRef<HTMLInputElement | null>(null)
+  const [selectedDuplicateIndex, setSelectedDuplicateIndex] = useState(0)
+  const [message, setMessage] = useState('')
 
-  const fileNames = useMemo(() => fileNameById(files), [files])
+  useEffect(() => {
+    const nextMode = searchParams.get('mode') === 'prices' ? 'prices' : 'trades'
+    setMode(nextMode)
+  }, [searchParams])
+
+  const fileNames = useMemo(() => new Map(files.map((file) => [file.id, file.filename])), [files])
   const duplicateRows = useMemo(() => tradePreview?.preview.rows.filter((row) => row.status === 'DUPLICATE') ?? [], [tradePreview])
-  const parsedRows = tradePreview?.parsed.transactions ?? []
+  const parsedPreviewRows = useMemo(() => tradePreview?.preview.rows.map((row, index) => ({row, txn: tradePreview.candidates[index]})) ?? [], [tradePreview])
+  const duplicatePreviewRows = useMemo(() => duplicateRows.map((row, index) => ({row, index})), [duplicateRows])
   const rawLines = tradePreview ? splitLines(tradePreview.text) : []
+  const importWarnings = tradePreview ? [...tradePreview.preview.rows.map((row) => row.reason)] : []
+  const selectedDuplicate = duplicateRows[selectedDuplicateIndex]
+  const selectedDuplicateCandidate = tradePreview && selectedDuplicate ? tradePreview.candidates[tradePreview.preview.rows.findIndex((row) => row === selectedDuplicate)] : undefined
+  const selectedDuplicateExisting = selectedDuplicate?.existingTxnId ? transactions.find((txn) => txn.id === selectedDuplicate.existingTxnId) : undefined
 
-  const loadTradeFile = async (file: File): Promise<void> => {
-    const { text, sha256, blob } = await readFile(file)
-    const fileId = crypto.randomUUID()
+  const previewTradeFile = async (file: File): Promise<void> => {
+    const {text, blob, sha256} = await readFile(file)
     const parsed = parserRegistry.parseImportText(file.name, text)
-    const candidates = candidateRowsFromParsed(fileId, text, parsed)
+    const fileId = crypto.randomUUID()
+    const candidates = parsed.transactions.map((txn, index) => ({
+      ...txn,
+      sourceFileId: fileId,
+      rawRow: {lineNumber: index + 2, rawText: splitLines(text)[index + 1] ?? ''},
+    }))
     const preview = await previewImportTransactions(candidates)
-    setTradePreview({ fileId, filename: file.name, text, blob, sha256, parsed, candidates, preview })
-    setView('parsed')
-    setSelectedRow(0)
-    setMessage(`Parsed ${parsed.transactions.length} transactions from ${file.name}`)
+    setTradePreview({fileId, filename: file.name, text, blob, sha256, candidates, preview})
+    setSelectedDuplicateIndex(0)
+    setTab('parsed')
+    setMessage(`Parsed ${parsed.transactions.length} rows from ${file.name}`)
   }
 
-  const loadPriceFile = async (file: File): Promise<void> => {
-    const { text } = await readFile(file)
+  const previewPriceFile = async (file: File): Promise<void> => {
+    const {text} = await readFile(file)
     const parsed = parseMonthlyPricesCsv(text)
-    const validRows = parsed.rows.map((row) => ({
+    const rows = parsed.rows.map((row) => ({
       ...row,
       id: `${row.securityId}:${row.month}`,
       source: 'MANUAL' as const,
-      warnings: missingMonthsForSecurity(transactions, [row.month], row.securityId, new Date().getFullYear()),
+      warnings: missingMonthsForSecurity(transactions, parsed.rows.filter((price) => price.securityId === row.securityId).map((price) => price.month), row.securityId, new Date().getFullYear()),
     }))
-    setPricePreview({ filename: file.name, text, rows: validRows, warnings: parsed.errors })
-    setMessage(`Parsed ${validRows.length} monthly price rows from ${file.name}`)
+    setPricePreview({filename: file.name, rows, errors: parsed.errors})
+    setMessage(`Parsed ${rows.length} monthly price rows from ${file.name}`)
   }
 
-  const handleTradeCommit = async (): Promise<void> => {
+  const commitTradeImport = async (): Promise<void> => {
     if (!tradePreview) return
-    await upsertSecurityAccounts(tradePreview.parsed)
-    await importTransactions(tradePreview.candidates)
-    await db.files.put({
-      id: tradePreview.fileId,
-      filename: tradePreview.filename,
-      broker: tradePreview.parsed.broker,
-      importedAt: new Date().toISOString(),
-      sizeBytes: tradePreview.blob.size,
-      sha256: tradePreview.sha256,
-      rowsProcessed: tradePreview.preview.counts.processed,
-      rowsNew: tradePreview.preview.counts.new,
-      rowsDuplicate: tradePreview.preview.counts.duplicate,
-      rowsError: tradePreview.preview.counts.error,
-      originalBlob: tradePreview.blob,
-      rawText: tradePreview.text,
+    const parsed = parserRegistry.parseImportText(tradePreview.filename, tradePreview.text)
+    await db.transaction('rw', db.securities, db.accounts, db.transactions, db.files, async () => {
+      await db.securities.bulkPut(parsed.securities)
+      await db.accounts.bulkPut(parsed.accounts)
+      await importTransactions(tradePreview.candidates)
+      await db.files.put({
+        id: tradePreview.fileId,
+        filename: tradePreview.filename,
+        broker: parsed.broker,
+        importedAt: new Date().toISOString(),
+        sizeBytes: tradePreview.blob.size,
+        sha256: tradePreview.sha256,
+        rowsProcessed: tradePreview.preview.counts.processed,
+        rowsNew: tradePreview.preview.counts.new,
+        rowsDuplicate: tradePreview.preview.counts.duplicate,
+        rowsError: tradePreview.preview.counts.error,
+        originalBlob: tradePreview.blob,
+        rawText: tradePreview.text,
+      })
     })
-    setMessage(`Committed ${tradePreview.preview.counts.new} new and ${tradePreview.preview.counts.duplicate} duplicate rows`)
+    setMessage(`Committed ${tradePreview.preview.counts.new} new rows and linked ${tradePreview.preview.counts.duplicate} duplicates`)
   }
 
-  const handlePriceCommit = async (): Promise<void> => {
+  const commitPriceImport = async (): Promise<void> => {
     if (!pricePreview) return
     await db.prices.bulkPut(pricePreview.rows)
-    setMessage(`Saved ${pricePreview.rows.length} monthly prices`)
+    setMessage(`Saved ${pricePreview.rows.length} monthly price rows`)
   }
 
-  const restoreFromBackup = async (file: File): Promise<void> => {
-    const text = await file.text()
-    const backup = JSON.parse(text) as {
-      securities: Security[]
-      accounts: Account[]
-      transactions: Transaction[]
-      prices: MonthlyPrice[]
-      files: Array<{ id: string; filename: string; broker: string; importedAt: string; sizeBytes: number; sha256: string; rowsProcessed: number; rowsNew: number; rowsDuplicate: number; rowsError: number; rawText?: string }>
-      logs: Array<{ id: string; ts: string; category: 'IMPORT' | 'DEDUPE' | 'FIFO' | 'PRICE' | 'ERROR' | 'SYSTEM'; message: string; detail?: unknown }>
-    }
-    await db.transaction('rw', [db.securities, db.accounts, db.transactions, db.prices, db.files, db.logs], async () => {
-      await Promise.all([db.securities.clear(), db.accounts.clear(), db.transactions.clear(), db.prices.clear(), db.files.clear(), db.logs.clear()])
-      await db.securities.bulkPut(backup.securities)
-      await db.accounts.bulkPut(backup.accounts)
-      await db.transactions.bulkPut(backup.transactions)
-      await db.prices.bulkPut(backup.prices)
-      await db.files.bulkPut(backup.files.map((entry) => ({ ...entry, broker: entry.broker as 'ZERODHA' | 'IBKR' | 'ETRADE' | 'OTHER', originalBlob: new Blob([], { type: 'application/octet-stream' }) })))
-      await db.logs.bulkPut(backup.logs)
-    })
-    setMessage('Restored backup by wiping and reloading local tables')
+  const restoreFromBackupFile = async (file: File): Promise<void> => {
+    const backup = JSON.parse(await file.text()) as Parameters<typeof restoreBackup>[0]
+    await restoreBackup(backup)
+    setMessage('Backup restored into local IndexedDB')
   }
 
-  const importWarnings = tradePreview ? [...tradePreview.parsed.warnings.map((warning) => warning.reason), ...tradePreview.preview.rows.map((row) => row.reason)] : []
+  const exportBackupFile = async (): Promise<void> => {
+    const backup = await exportBackup()
+    downloadText(`portfolio-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(backup, null, 2))
+  }
 
   return (
-    <div className="space-y-6">
+    <View UNSAFE_style={{display: 'grid', gap: '20px'}}>
       <SectionTitle
         title="Uploads"
-        subtitle="Preview imports before committing them to IndexedDB. Use the sample files to exercise parsers."
-        actions={<div className="flex gap-2"><Button variant={mode === 'trades' ? 'primary' : 'secondary'} onClick={() => setMode('trades')}>Trade import</Button><Button variant={mode === 'prices' ? 'primary' : 'secondary'} onClick={() => setMode('prices')}>Monthly prices</Button></div>}
+        subtitle="Preview imports before committing them. Sample files are available for quick testing."
+        actions={
+          <>
+            <Button variant={mode === 'trades' ? 'accent' : 'secondary'} onPress={() => { setMode('trades'); setSearchParams({mode: 'trades'}) }}>Trade import</Button>
+            <Button variant={mode === 'prices' ? 'accent' : 'secondary'} onPress={() => { setMode('prices'); setSearchParams({mode: 'prices'}) }}>Monthly prices</Button>
+            <Button variant="secondary" onPress={() => void exportBackupFile()}>Export full backup</Button>
+          </>
+        }
       />
 
-      {message ? <Card><p className="text-sm text-slate-700">{message}</p></Card> : null}
+      {message ? <Panel><Text>{message}</Text></Panel> : null}
 
       {mode === 'trades' ? (
-        <div className="grid gap-6 xl:grid-cols-3">
-          <Card className="xl:col-span-2">
-            <SectionTitle title="Import wizard" subtitle="Drop a CSV or pick a sample. Preview first, then commit." />
-            <div
-              className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center"
-              onDragOver={(event) => event.preventDefault()}
+        <View UNSAFE_style={{display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(18rem, 1fr)', gap: '20px'}}>
+          <Panel>
+            <SectionTitle title="Import wizard" subtitle="Drop a CSV or choose a sample. Preview first, then commit." />
+            <DropZone
+              isFilled={!!tradePreview}
+              getDropOperation={() => 'copy'}
               onDrop={async (event) => {
-                event.preventDefault()
-                const file = event.dataTransfer.files.item(0)
-                if (file) await loadTradeFile(file)
+                const fileItem = event.items.find((item) => item.kind === 'file')
+                if (fileItem) await previewTradeFile(await fileItem.getFile())
               }}
-              onClick={() => tradeInputRef.current?.click()}
             >
-              <div className="text-sm font-medium text-slate-900">Drag and drop a tradebook here</div>
-              <p className="mt-1 text-sm text-slate-500">or click to browse your device</p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {tradeSamples.map((sample) => (
-                  <Button key={sample.file} variant="secondary" onClick={async (event) => {
-                    event.stopPropagation()
-                    const response = await fetch(sample.file)
-                    const text = await response.text()
-                    await loadTradeFile(new File([text], sample.name, { type: 'text/csv' }))
-                  }}>{sample.name}</Button>
-                ))}
-              </div>
-              <input ref={tradeInputRef} className="hidden" type="file" accept=".csv,text/csv" onChange={async (event) => {
-                const file = event.target.files?.[0]
-                if (file) await loadTradeFile(file)
-              }} />
-            </div>
+              <View UNSAFE_style={{padding: '24px', textAlign: 'center'}}>
+                <Heading level={4}>Drag and drop a tradebook here</Heading>
+                <Text UNSAFE_style={{color: 'var(--spectrum-alias-text-color-secondary)'}}>or pick a sample below</Text>
+                <Flex gap="size-100" wrap justifyContent="center" UNSAFE_style={{marginTop: '12px'}}>
+                  {tradeSamples.map((sample) => (
+                    <Button key={sample.file} variant="secondary" onPress={async () => {
+                      const response = await fetch(appendBasePath(sample.file))
+                      await previewTradeFile(new File([await response.text()], sample.name, {type: 'text/csv'}))
+                    }}>{sample.name}</Button>
+                  ))}
+                </Flex>
+                <FileTrigger acceptedFileTypes={["text/csv"]} onSelect={(files) => { const file = files?.[0]; if (file) void previewTradeFile(file) }}>
+                  <Button variant="accent">Browse files</Button>
+                </FileTrigger>
+              </View>
+            </DropZone>
 
             {tradePreview ? (
-              <div className="mt-6 space-y-4">
-                <div className="flex flex-wrap gap-2">
+              <View UNSAFE_style={{display: 'grid', gap: '16px', marginTop: '16px'}}>
+                <Flex gap="size-100" wrap>
                   {(['raw', 'parsed', 'duplicates'] as const).map((item) => (
-                    <Button key={item} variant={view === item ? 'primary' : 'secondary'} onClick={() => setView(item)}>{item === 'raw' ? 'Raw Preview' : item === 'parsed' ? 'Parsed' : 'Duplicates'}</Button>
+                    <Button key={item} variant={tab === item ? 'accent' : 'secondary'} onPress={() => setTab(item)}>{item === 'raw' ? 'Raw Preview' : item === 'parsed' ? 'Parsed' : 'Duplicates'}</Button>
                   ))}
-                  <Button onClick={() => void handleTradeCommit()}>Commit import</Button>
-                </div>
+                  <Button variant="accent" onPress={() => void commitTradeImport()}>Commit import</Button>
+                </Flex>
 
-                {view === 'raw' ? (
-                  <Card className="bg-slate-50">
-                    <pre className="overflow-x-auto text-xs leading-6 text-slate-700">{rawLines.map((line, index) => `${String(index + 1).padStart(3, ' ')}  ${line}`).join('\n')}</pre>
-                  </Card>
+                {tab === 'raw' ? (
+                  <Panel>
+                    <View UNSAFE_style={{whiteSpace: 'pre-wrap', fontFamily: 'var(--spectrum-code-font-family, monospace)', fontSize: '12px'}}>
+                      {rawLines.map((line, index) => `${String(index + 1).padStart(3, ' ')}  ${line}`).join('\n')}
+                    </View>
+                  </Panel>
                 ) : null}
 
-                {view === 'parsed' ? (
-                  <div className="overflow-hidden rounded-2xl border border-slate-200">
-                    <table className="min-w-full divide-y divide-slate-200 text-sm">
-                      <thead className="bg-slate-50 text-slate-500">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-medium">Line</th>
-                          <th className="px-3 py-2 text-left font-medium">Date</th>
-                          <th className="px-3 py-2 text-left font-medium">Symbol</th>
-                          <th className="px-3 py-2 text-left font-medium">Type</th>
-                          <th className="px-3 py-2 text-right font-medium">Qty</th>
-                          <th className="px-3 py-2 text-right font-medium">Price</th>
-                          <th className="px-3 py-2 text-left font-medium">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 bg-white">
-                        {tradePreview.preview.rows.map((row, index) => {
-                          const transaction = parsedRows[index]
-                          const security = transaction ? securityById.get(transaction.securityId) : undefined
-                          return (
-                            <tr key={`${row.lineNumber}-${index}`} className="cursor-pointer hover:bg-slate-50" onClick={() => setSelectedRow(index)}>
-                              <td className="px-3 py-2">{row.lineNumber}</td>
-                              <td className="px-3 py-2">{transaction ? transaction.date : '—'}</td>
-                              <td className="px-3 py-2">{security?.symbol ?? transaction?.securityId ?? '—'}</td>
-                              <td className="px-3 py-2">{transaction?.type ?? '—'}</td>
-                              <td className="px-3 py-2 text-right">{formatQty(transaction?.quantity)}</td>
-                              <td className="px-3 py-2 text-right">{formatMoney(transaction?.price)}</td>
-                              <td className="px-3 py-2">
-                                <Badge tone={row.status === 'NEW' ? 'green' : row.status === 'DUPLICATE' ? 'amber' : 'red'}>{row.status}</Badge>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
-
-                {view === 'duplicates' ? (
-                  duplicateRows.length === 0 ? <EmptyState title="No duplicates detected" description="This import does not match any existing transaction hash." /> : (
-                    <div className="space-y-3">
-                      {duplicateRows.map((row) => {
-                        const index = tradePreview.preview.rows.indexOf(row)
-                        const candidate = tradePreview.candidates[index]
-                        const existing = tradePreview.preview.rows.find((item) => item.existingTxnId === row.existingTxnId)
-                        const existingTxn = existing?.existingTxnId ? transactions.find((txn) => txn.id === existing.existingTxnId) : undefined
+                {tab === 'parsed' ? (
+                  <TableView aria-label="Parsed trades" density="compact">
+                    <TableHeader>
+                      <Column>Line</Column>
+                      <Column>Date</Column>
+                      <Column>Symbol</Column>
+                      <Column>Type</Column>
+                      <Column align="end">Qty</Column>
+                      <Column align="end">Price</Column>
+                      <Column>Status</Column>
+                    </TableHeader>
+                    <TableBody items={parsedPreviewRows}>
+                      {({row, txn}) => {
+                        const security = txn ? securityById.get(txn.securityId) : undefined
                         return (
-                          <Card key={`${row.existingTxnId}-${row.lineNumber}`}>
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <div>
-                                <div className="text-sm font-medium text-slate-900">Incoming row</div>
-                                <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-50 p-3 text-xs text-slate-600">{candidate?.rawRow.rawText}</pre>
-                              </div>
-                              <div>
-                                <div className="text-sm font-medium text-slate-900">Matched existing txn</div>
-                                <div className="mt-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-                                  <div>{existingTxn?.securityId}</div>
-                                  <div>{existingTxn?.date} · {existingTxn?.type} · {formatQty(existingTxn?.quantity)}</div>
-                                  <div className="mt-2">Files: {(existingTxn?.sourceFileIds ?? []).map((fileId) => fileNames.get(fileId) ?? fileId).join(', ')}</div>
-                                </div>
-                              </div>
-                            </div>
-                          </Card>
+                          <Row key={`${row.lineNumber}-${txn?.securityId ?? 'unknown'}`}>
+                            <Cell>{row.lineNumber}</Cell>
+                            <Cell>{txn?.date ?? '—'}</Cell>
+                            <Cell>{security?.symbol ?? txn?.securityId ?? '—'}</Cell>
+                            <Cell>{txn?.type ?? '—'}</Cell>
+                            <Cell>{formatQty(txn?.quantity)}</Cell>
+                            <Cell>{formatMoney(txn?.price)}</Cell>
+                            <Cell><StatusLight variant={row.status === 'NEW' ? 'positive' : row.status === 'DUPLICATE' ? 'notice' : 'negative'}>{row.status}</StatusLight></Cell>
+                          </Row>
                         )
-                      })}
-                    </div>
+                      }}
+                    </TableBody>
+                  </TableView>
+                ) : null}
+
+                {tab === 'duplicates' ? (
+                  duplicateRows.length === 0 ? (
+                    <EmptyState title="No duplicates detected" description="This file does not match an existing transaction hash." />
+                  ) : (
+                    <View UNSAFE_style={{display: 'grid', gap: '12px'}}>
+                      <TableView aria-label="Duplicate rows" density="compact">
+                        <TableHeader>
+                          <Column>Line</Column>
+                          <Column>Existing transaction</Column>
+                          <Column>Action</Column>
+                        </TableHeader>
+                        <TableBody items={duplicatePreviewRows}>
+                          {({row, index}) => (
+                            <Row key={`${row.lineNumber}-${row.existingTxnId}`}>
+                              <Cell>{row.lineNumber}</Cell>
+                              <Cell>{row.existingTxnId}</Cell>
+                              <Cell><Button variant="secondary" onPress={() => setSelectedDuplicateIndex(index)}>View details</Button></Cell>
+                            </Row>
+                          )}
+                        </TableBody>
+                      </TableView>
+                      {selectedDuplicate && tradePreview ? (
+                        <View UNSAFE_style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(16rem, 1fr))', gap: '12px'}}>
+                          <Panel>
+                            <Heading level={4}>Incoming row</Heading>
+                            <Text UNSAFE_style={{whiteSpace: 'pre-wrap', fontFamily: 'var(--spectrum-code-font-family, monospace)'}}>{selectedDuplicateCandidate?.rawRow.rawText}</Text>
+                          </Panel>
+                          <Panel>
+                            <Heading level={4}>Matched existing txn</Heading>
+                            <Text>{selectedDuplicateExisting?.securityId}</Text>
+                            <Text>{selectedDuplicateExisting?.date} · {selectedDuplicateExisting?.type} · {formatQty(selectedDuplicateExisting?.quantity)}</Text>
+                            <Text UNSAFE_style={{marginTop: '8px'}}>Files: {(selectedDuplicateExisting?.sourceFileIds ?? []).map((fileId) => fileNames.get(fileId) ?? fileId).join(', ')}</Text>
+                          </Panel>
+                        </View>
+                      ) : null}
+                    </View>
                   )
                 ) : null}
 
                 {importWarnings.length > 0 ? (
-                  <Card>
-                    <SectionTitle title="Import log" subtitle="Warnings and dedupe decisions for this file." />
-                    <ul className="space-y-2 text-sm text-slate-600">
-                      {importWarnings.map((warning, index) => <li key={`${warning}-${index}`}>• {warning}</li>)}
-                    </ul>
-                  </Card>
+                  <Panel>
+                    <SectionTitle title="Import log" subtitle="Reasons and warnings collected during preview." />
+                    <View UNSAFE_style={{display: 'grid', gap: '8px', maxHeight: '12rem', overflow: 'auto'}}>
+                      {importWarnings.map((warning, index) => <Text key={`${warning}-${index}`}>• {warning}</Text>)}
+                    </View>
+                  </Panel>
                 ) : null}
-
-                {selectedRow >= 0 && tradePreview.preview.rows[selectedRow] ? (
-                  <Card>
-                    <SectionTitle title="Selected row details" subtitle="Raw row and decision reason." />
-                    <div className="grid gap-4 md:grid-cols-2 text-sm">
-                      <pre className="overflow-x-auto rounded-xl bg-slate-50 p-3 text-xs text-slate-600">{tradePreview.candidates[selectedRow]?.rawRow.rawText ?? ''}</pre>
-                      <div className="rounded-xl bg-slate-50 p-3 text-slate-600">
-                        <div className="font-medium text-slate-900">Reason</div>
-                        <p className="mt-2">{tradePreview.preview.rows[selectedRow]?.reason}</p>
-                      </div>
-                    </div>
-                  </Card>
-                ) : null}
-              </div>
+              </View>
             ) : (
               <EmptyState title="Preview an import" description="Choose a sample file or upload your own tradebook to see parsing, dedupe, and commit controls." />
             )}
-          </Card>
+          </Panel>
 
-          <Card>
-            <SectionTitle title="Document vault" subtitle="Stored imports with a download link for each original file." />
-            {files.length === 0 ? (
-              <EmptyState title="No documents yet" description="Committed imports appear here with original files stored as Blobs." />
-            ) : (
-              <div className="space-y-3">
-                {files.map((file) => (
-                  <div key={file.id} className="rounded-xl border border-slate-200 p-3 text-sm">
-                    <div className="font-medium text-slate-900">{file.filename}</div>
-                    <div className="mt-1 text-slate-500">{file.broker} · {formatDateTime(file.importedAt)}</div>
-                    <div className="mt-1 text-slate-500">{file.sizeBytes.toLocaleString()} bytes</div>
-                    <Button
-                      className="mt-3"
-                      variant="secondary"
-                      onClick={() => downloadBlob(file.filename, file.originalBlob)}
-                    >
-                      Download original
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
+          <View UNSAFE_style={{display: 'grid', gap: '20px'}}>
+            <Panel>
+              <SectionTitle title="Document vault" subtitle="Original imports stored as Blobs for audit and download." />
+              {files.length === 0 ? (
+                <EmptyState title="No documents yet" description="Committed imports appear here." />
+              ) : (
+                <TableView aria-label="Documents" density="compact">
+                  <TableHeader>
+                    <Column>Filename</Column>
+                    <Column>Broker</Column>
+                    <Column>Import date</Column>
+                    <Column align="end">Size</Column>
+                    <Column>Action</Column>
+                  </TableHeader>
+                  <TableBody items={files}>
+                    {(file) => (
+                      <Row key={file.id}>
+                        <Cell>{file.filename}</Cell>
+                        <Cell>{file.broker}</Cell>
+                        <Cell>{formatDateTime(file.importedAt)}</Cell>
+                        <Cell>{file.sizeBytes.toLocaleString()}</Cell>
+                        <Cell><Button variant="secondary" onPress={() => downloadBlob(file.filename, file.originalBlob)}>Download original</Button></Cell>
+                      </Row>
+                    )}
+                  </TableBody>
+                </TableView>
+              )}
+            </Panel>
+
+            <Panel>
+              <SectionTitle title="Monthly prices" subtitle="Upload price CSVs to drive current value and tax valuation." />
+              <DropZone
+                isFilled={!!pricePreview}
+                getDropOperation={() => 'copy'}
+                onDrop={async (event) => {
+                  const fileItem = event.items.find((item) => item.kind === 'file')
+                  if (fileItem) await previewPriceFile(await fileItem.getFile())
+                }}
+              >
+                <View UNSAFE_style={{padding: '24px', textAlign: 'center'}}>
+                  <Heading level={4}>Drop monthly prices here</Heading>
+                  <Text UNSAFE_style={{color: 'var(--spectrum-alias-text-color-secondary)'}}>or pick the sample file below</Text>
+                  <Flex gap="size-100" wrap justifyContent="center" UNSAFE_style={{marginTop: '12px'}}>
+                    {priceSamples.map((sample) => (
+                      <Button key={sample.file} variant="secondary" onPress={async () => {
+                        const response = await fetch(appendBasePath(sample.file))
+                        await previewPriceFile(new File([await response.text()], sample.name, {type: 'text/csv'}))
+                      }}>{sample.name}</Button>
+                    ))}
+                  </Flex>
+                  <FileTrigger acceptedFileTypes={["text/csv"]} onSelect={(files) => { const file = files?.[0]; if (file) void previewPriceFile(file) }}>
+                    <Button variant="accent">Browse files</Button>
+                  </FileTrigger>
+                </View>
+              </DropZone>
+
+              {pricePreview ? (
+                <View UNSAFE_style={{display: 'grid', gap: '12px', marginTop: '16px'}}>
+                  <Button variant="accent" onPress={() => void commitPriceImport()}>Save prices</Button>
+                  {pricePreview.errors.length > 0 ? <Panel><Text>{pricePreview.errors.join(' · ')}</Text></Panel> : null}
+                  <TableView aria-label="Monthly prices" density="compact">
+                    <TableHeader>
+                      <Column>Security</Column>
+                      <Column>Month</Column>
+                      <Column align="end">Price</Column>
+                      <Column>Currency</Column>
+                      <Column align="end">FX</Column>
+                    </TableHeader>
+                    <TableBody items={pricePreview.rows}>
+                      {(row) => (
+                        <Row key={row.id}>
+                          <Cell>{row.securityId}</Cell>
+                          <Cell>{row.month}</Cell>
+                          <Cell>{row.price}</Cell>
+                          <Cell>{row.currency}</Cell>
+                          <Cell>{row.fxRate}</Cell>
+                        </Row>
+                      )}
+                    </TableBody>
+                  </TableView>
+                </View>
+              ) : (
+                <EmptyState title="No price file yet" description="Upload monthly prices to power current value, peak FA, and tax calculations." />
+              )}
+            </Panel>
+
+            <Panel>
+              <SectionTitle title="Restore from backup" subtitle="Choose a JSON backup to wipe and reload local tables." />
+              <FileTrigger acceptedFileTypes={["application/json"]} onSelect={(files) => { const file = files?.[0]; if (file) void restoreFromBackupFile(file) }}>
+                <Button variant="secondary">Restore backup</Button>
+              </FileTrigger>
+              <Button variant="secondary" onPress={() => void exportBackupFile()}>Export full backup</Button>
+            </Panel>
+          </View>
+        </View>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-2">
-          <Card>
-            <SectionTitle title="Monthly prices" subtitle="Upload a CSV with month, security, price, currency, and optional FX rate." />
-            <div
-              id="prices"
-              className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={async (event) => {
-                event.preventDefault()
-                const file = event.dataTransfer.files.item(0)
-                if (file) await loadPriceFile(file)
-              }}
-              onClick={() => priceInputRef.current?.click()}
-            >
-              <div className="text-sm font-medium text-slate-900">Drop monthly prices here</div>
-              <p className="mt-1 text-sm text-slate-500">or choose a CSV from your device</p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {priceSamples.map((sample) => (
-                  <Button key={sample.file} variant="secondary" onClick={async (event) => {
-                    event.stopPropagation()
-                    const response = await fetch(sample.file)
-                    const text = await response.text()
-                    await loadPriceFile(new File([text], sample.name, { type: 'text/csv' }))
-                  }}>{sample.name}</Button>
-                ))}
-              </div>
-              <input ref={priceInputRef} className="hidden" type="file" accept=".csv,text/csv" onChange={async (event) => {
-                const file = event.target.files?.[0]
-                if (file) await loadPriceFile(file)
-              }} />
-            </div>
-            {pricePreview ? (
-              <div className="mt-6 space-y-4">
-                <Button onClick={() => void handlePriceCommit()}>Save prices</Button>
-                {pricePreview.warnings.length > 0 ? <Card className="bg-amber-50 text-amber-900"><div className="text-sm font-medium">Parser warnings</div><ul className="mt-2 list-disc pl-5 text-sm">{pricePreview.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></Card> : null}
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-slate-50 text-slate-500">
-                      <tr><th className="px-3 py-2 text-left">Security</th><th className="px-3 py-2 text-left">Month</th><th className="px-3 py-2 text-right">Price</th><th className="px-3 py-2 text-left">Currency</th><th className="px-3 py-2 text-right">FX</th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 bg-white">
-                      {pricePreview.rows.map((row) => <tr key={row.id}><td className="px-3 py-2">{row.securityId}</td><td className="px-3 py-2">{row.month}</td><td className="px-3 py-2 text-right">{row.price}</td><td className="px-3 py-2">{row.currency}</td><td className="px-3 py-2 text-right">{row.fxRate}</td></tr>)}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : <EmptyState title="No price file yet" description="Upload monthly prices to power current value, peak FA, and tax calculations." />}
-          </Card>
-
-          <Card>
-            <SectionTitle title="Restore from backup" subtitle="This restores by wiping local tables and reloading the backup JSON." />
-            <p className="text-sm text-slate-600">Import a full backup JSON to replace your current local IndexedDB state.</p>
-            <Button className="mt-4" onClick={() => restoreInputRef.current?.click()}>Restore from backup</Button>
-            <input ref={restoreInputRef} className="hidden" type="file" accept="application/json,.json" onChange={async (event) => {
-              const file = event.target.files?.[0]
-              if (file) await restoreFromBackup(file)
-            }} />
-          </Card>
-        </div>
+        <Panel>
+          <SectionTitle title="Monthly prices" subtitle="Upload the monthly price CSV from the toolbar above." />
+          <EmptyState title="Switch to Monthly prices" description="Use the Monthly prices button to open the price upload workspace." />
+        </Panel>
       )}
-    </div>
+    </View>
   )
 }

@@ -2,14 +2,36 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
 
 // GitHub Pages serves a project site under /<repo>/. Allow override via BASE_PATH.
 const base = process.env.BASE_PATH ?? '/portfolio-tracker/'
+const rootDir = dirname(fileURLToPath(import.meta.url))
+
+const stripCssInVitest = {
+  name: 'strip-css-in-vitest',
+  enforce: 'pre' as const,
+  load(id: string) {
+    if (process.env.VITEST && id.endsWith('.css')) {
+      return 'export default {}'
+    }
+    return undefined
+  },
+}
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({mode}) => ({
   base,
+  resolve: mode === 'test'
+    ? {
+        alias: {
+          '@adobe/react-spectrum': resolve(rootDir, 'test-support/react-spectrum-shim.tsx'),
+        },
+      }
+    : undefined,
   plugins: [
+    stripCssInVitest,
     react(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -42,6 +64,11 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    css: false,
+    css: true,
+    server: {
+      deps: {
+        inline: ['@adobe/react-spectrum', '@spectrum-icons/workflow'],
+      },
+    },
   },
-})
+}))

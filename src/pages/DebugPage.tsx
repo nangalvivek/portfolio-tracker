@@ -1,20 +1,30 @@
-import { useMemo, useState } from 'react'
-import { usePortfolioData } from '../hooks/usePortfolioData'
-import { computeDedupeHash } from '../domain/dedupe'
-import { fifoTrace } from '../domain/fifo'
-import { downloadText } from '../lib/download'
-import { formatDateTime, formatMoney, formatQty } from '../lib/format'
-import { Badge, Button, Card, EmptyState, Input, SectionTitle, Select } from '../components/Ui'
+import {useMemo, useState} from 'react'
+import {Button, Cell, Column, Heading, Item, NumberField, Picker, Row, SearchField, StatusLight, TableBody, TableHeader, TableView, Text, TextField, View} from '@adobe/react-spectrum'
+import {usePortfolioData} from '../hooks/usePortfolioData'
+import {computeDedupeHash} from '../domain/dedupe'
+import {fifoTrace} from '../domain/fifo'
+import {downloadText} from '../lib/download'
+import {formatDateTime, formatMoney, formatQty} from '../lib/format'
+import {EmptyState, Panel, SectionTitle} from '../components/Ui'
 
 const categories = ['ALL', 'IMPORT', 'DEDUPE', 'FIFO', 'PRICE', 'ERROR', 'SYSTEM'] as const
 
 type CategoryFilter = (typeof categories)[number]
 
+type HashForm = {
+  securityId: string
+  accountId: string
+  date: string
+  type: 'BUY' | 'SELL' | 'VEST' | 'DIVIDEND' | 'SPLIT' | 'BONUS'
+  quantity: number
+  price: number
+}
+
 export const DebugPage = () => {
-  const { logs, transactions, files, securityById } = usePortfolioData()
+  const {logs, transactions, files, securityById} = usePortfolioData()
   const [filter, setFilter] = useState<CategoryFilter>('ALL')
   const [search, setSearch] = useState('')
-  const [hashForm, setHashForm] = useState({ securityId: '', accountId: '', date: '', type: 'BUY', quantity: '1', price: '1' })
+  const [hashForm, setHashForm] = useState<HashForm>({securityId: '', accountId: '', date: '', type: 'BUY', quantity: 1, price: 1})
   const [selectedTxnId, setSelectedTxnId] = useState('')
   const [selectedSellId, setSelectedSellId] = useState('')
 
@@ -29,133 +39,150 @@ export const DebugPage = () => {
   }, [search, securityById, transactions])
 
   const selectedTxn = transactions.find((txn) => txn.id === selectedTxnId) ?? searchResults[0]
-  const selectedSellTxns = transactions.filter((txn) => txn.type === 'SELL')
-  const trace = selectedSellId ? fifoTrace(transactions, selectedSellId) : { steps: [] }
-  const canonicalKey = `${hashForm.securityId}|${hashForm.accountId}|${hashForm.date}|${hashForm.type}|${Number(hashForm.quantity).toFixed(4)}|${Number(hashForm.price).toFixed(2)}`
+  const sellTxns = transactions.filter((txn) => txn.type === 'SELL')
+  const trace = selectedSellId ? fifoTrace(transactions, selectedSellId) : {steps: []}
+
+  const canonicalKey = `${hashForm.securityId}|${hashForm.accountId}|${hashForm.date}|${hashForm.type}|${hashForm.quantity.toFixed(4)}|${hashForm.price.toFixed(2)}`
   const dedupeHash = useMemo(() => {
     if (!hashForm.securityId || !hashForm.accountId || !hashForm.date) return ''
-    return computeDedupeHash({
-      securityId: hashForm.securityId,
-      accountId: hashForm.accountId,
-      date: hashForm.date,
-      type: hashForm.type as 'BUY' | 'SELL' | 'VEST' | 'DIVIDEND' | 'SPLIT' | 'BONUS',
-      quantity: Number(hashForm.quantity),
-      price: Number(hashForm.price),
-    })
+    return computeDedupeHash(hashForm)
   }, [hashForm])
 
   return (
-    <div className="space-y-6">
+    <View UNSAFE_style={{display: 'grid', gap: '20px'}}>
       <SectionTitle title="Debug" subtitle="Inspect logs, verify hashes, and trace FIFO lot consumption." />
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
+      <View UNSAFE_style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(24rem, 1fr))', gap: '20px'}}>
+        <Panel>
           <SectionTitle
             title="System log"
             subtitle="Newest first, with category filters and export."
-            actions={<div className="flex gap-2"><Button variant="secondary" onClick={() => downloadText('logs.json', JSON.stringify(filteredLogs, null, 2))}>Export log JSON</Button><Button variant="secondary" onClick={() => downloadText('logs.csv', `ts,category,message\n${filteredLogs.map((log) => `${log.ts},${log.category},${JSON.stringify(log.message)}`).join('\n')}`, 'text/csv')}>Export log CSV</Button></div>}
+            actions={
+              <>
+                <Button variant="secondary" onPress={() => downloadText('logs.json', JSON.stringify(filteredLogs, null, 2))}>Export log JSON</Button>
+                <Button variant="secondary" onPress={() => downloadText('logs.csv', ['ts,category,message', ...filteredLogs.map((log) => `${log.ts},${log.category},${JSON.stringify(log.message)}`)].join('\n'), 'text/csv')}>Export log CSV</Button>
+              </>
+            }
           />
-          <div className="mb-3 flex flex-wrap gap-2">
-            {categories.map((category) => (
-              <button key={category} type="button" onClick={() => setFilter(category)} className={`rounded-full px-3 py-1 text-xs font-medium ${filter === category ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{category}</button>
-            ))}
-          </div>
+          <Picker aria-label="Log category" selectedKey={filter} onSelectionChange={(key) => setFilter(key as CategoryFilter)}>
+            {categories.map((category) => <Item key={category}>{category}</Item>)}
+          </Picker>
           {filteredLogs.length === 0 ? (
             <EmptyState title="No logs yet" description="Imports, dedupe actions, FIFO traces, and validation errors will appear here." />
           ) : (
-            <div className="space-y-2">
-              {filteredLogs.map((log) => (
-                <div key={log.id} className="rounded-xl border border-slate-200 p-3 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <Badge tone="slate">{log.category}</Badge>
-                    <span className="text-xs text-slate-500">{formatDateTime(log.ts)}</span>
-                  </div>
-                  <div className="mt-2 text-slate-900">{log.message}</div>
-                  {log.detail ? <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-50 p-2 text-xs text-slate-600">{JSON.stringify(log.detail, null, 2)}</pre> : null}
-                </div>
-              ))}
-            </div>
+            <TableView aria-label="System log" density="compact">
+              <TableHeader>
+                <Column>Timestamp</Column>
+                <Column>Category</Column>
+                <Column>Message</Column>
+              </TableHeader>
+              <TableBody items={filteredLogs}>
+                {(log) => (
+                  <Row key={log.id}>
+                    <Cell>{formatDateTime(log.ts)}</Cell>
+                    <Cell><StatusLight variant={log.category === 'ERROR' ? 'negative' : log.category === 'DEDUPE' ? 'notice' : 'info'}>{log.category}</StatusLight></Cell>
+                    <Cell>{log.message}</Cell>
+                  </Row>
+                )}
+              </TableBody>
+            </TableView>
           )}
-        </Card>
+        </Panel>
 
-        <Card>
+        <Panel>
           <SectionTitle title="Transaction inspector" subtitle="Search by symbol or date and inspect source documents." />
-          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by date or symbol" />
+          <SearchField aria-label="Search transactions" placeholder="Search by date or symbol" value={search} onChange={setSearch} />
           {searchResults.length === 0 ? (
-            <EmptyState title="No transaction selected" description="Enter a date or symbol to inspect a transaction and its raw row references." />
+            <EmptyState title="No results" description="Enter a date or symbol to inspect transaction source rows." />
           ) : (
-            <div className="mt-4 space-y-3">
+            <View UNSAFE_style={{display: 'grid', gap: '12px', marginTop: '12px'}}>
               {searchResults.map((txn) => (
-                <button key={txn.id} type="button" onClick={() => setSelectedTxnId(txn.id)} className="w-full rounded-xl border border-slate-200 p-3 text-left text-sm hover:bg-slate-50">
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium text-slate-900">{securityById.get(txn.securityId)?.symbol ?? txn.securityId}</div>
-                    <Badge tone="slate">{txn.type}</Badge>
-                  </div>
-                  <div className="mt-1 text-slate-500">{txn.date} · Qty {formatQty(txn.quantity)} · Price {formatMoney(txn.price)}</div>
-                </button>
+                <Button key={txn.id} variant={txn.id === selectedTxn?.id ? 'accent' : 'secondary'} onPress={() => setSelectedTxnId(txn.id)}>
+                  {securityById.get(txn.securityId)?.symbol ?? txn.securityId} · {txn.date} · {txn.type}
+                </Button>
               ))}
-            </div>
+            </View>
           )}
+
           {selectedTxn ? (
-            <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
-              <div className="font-medium text-slate-900">{selectedTxn.securityId}</div>
-              <div className="mt-1">Source files: {(selectedTxn.sourceFileIds ?? []).map((fileId) => files.find((file) => file.id === fileId)?.filename ?? fileId).join(', ')}</div>
-              <div className="mt-2 space-y-2">
+            <Panel>
+              <Heading level={4}>Transaction details</Heading>
+              <Text>{selectedTxn.securityId}</Text>
+              <Text>{selectedTxn.date} · Qty {formatQty(selectedTxn.quantity)} · Price {formatMoney(selectedTxn.price)}</Text>
+              <Text UNSAFE_style={{marginTop: '8px'}}>Source files: {(selectedTxn.sourceFileIds ?? []).map((fileId) => files.find((file) => file.id === fileId)?.filename ?? fileId).join(', ')}</Text>
+              <View UNSAFE_style={{display: 'grid', gap: '12px', marginTop: '12px'}}>
                 {selectedTxn.rawRowRefs.map((ref) => (
-                  <div key={`${ref.fileId}-${ref.lineNumber}`} className="rounded-lg bg-white p-2 text-xs">
-                    <div className="font-medium text-slate-900">{files.find((file) => file.id === ref.fileId)?.filename ?? ref.fileId} · line {ref.lineNumber}</div>
-                    <pre className="mt-1 overflow-x-auto text-slate-600">{ref.rawText}</pre>
-                  </div>
+                  <Panel key={`${ref.fileId}-${ref.lineNumber}`}>
+                    <Text>{files.find((file) => file.id === ref.fileId)?.filename ?? ref.fileId} · line {ref.lineNumber}</Text>
+                    <Text UNSAFE_style={{whiteSpace: 'pre-wrap', fontFamily: 'var(--spectrum-code-font-family, monospace)'}}>{ref.rawText}</Text>
+                  </Panel>
                 ))}
-              </div>
-            </div>
+              </View>
+            </Panel>
           ) : null}
-        </Card>
-      </div>
+        </Panel>
+      </View>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
+      <View UNSAFE_style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(24rem, 1fr))', gap: '20px'}}>
+        <Panel>
           <SectionTitle title="Hash checker" subtitle="Uses the same dedupe hash algorithm as imports." />
-          <div className="grid gap-3 md:grid-cols-2">
-            {(['securityId', 'accountId', 'date', 'type', 'quantity', 'price'] as const).map((field) => (
-              <Input
-                key={field}
-                value={hashForm[field]}
-                onChange={(event) => setHashForm((current) => ({ ...current, [field]: event.target.value }))}
-                placeholder={field}
-              />
-            ))}
-          </div>
-          <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm">
-            <div className="text-slate-500">Canonical key</div>
-            <div className="mt-1 break-all font-mono text-slate-900">{canonicalKey}</div>
-            <div className="mt-3 text-slate-500">Dedupe hash</div>
-            <div className="mt-1 break-all font-mono text-slate-900">{dedupeHash || '—'}</div>
-          </div>
-        </Card>
+          <View UNSAFE_style={{display: 'grid', gap: '12px'}}>
+            <TextField label="Security ID" value={hashForm.securityId} onChange={(value) => setHashForm((current) => ({...current, securityId: value}))} />
+            <TextField label="Account ID" value={hashForm.accountId} onChange={(value) => setHashForm((current) => ({...current, accountId: value}))} />
+            <TextField label="Date" value={hashForm.date} onChange={(value) => setHashForm((current) => ({...current, date: value}))} />
+            <Picker label="Type" selectedKey={hashForm.type} onSelectionChange={(key) => setHashForm((current) => ({...current, type: String(key) as HashForm['type']}))}>
+              {(['BUY', 'SELL', 'VEST', 'DIVIDEND', 'SPLIT', 'BONUS'] as const).map((type) => <Item key={type}>{type}</Item>)}
+            </Picker>
+            <NumberField label="Quantity" value={hashForm.quantity} onChange={(value) => setHashForm((current) => ({...current, quantity: value ?? 0}))} />
+            <NumberField label="Price" value={hashForm.price} onChange={(value) => setHashForm((current) => ({...current, price: value ?? 0}))} />
+          </View>
+          <Panel>
+            <Text>Canonical key</Text>
+            <Heading level={4}>{canonicalKey}</Heading>
+            <Text>Dedupe hash</Text>
+            <Heading level={4}>{dedupeHash || '—'}</Heading>
+          </Panel>
+        </Panel>
 
-        <Card>
+        <Panel>
           <SectionTitle title="FIFO trace" subtitle="Pick a sell transaction to see lot consumption step-by-step." />
-          {selectedSellTxns.length === 0 ? (
+          {sellTxns.length === 0 ? (
             <EmptyState title="No sell transactions yet" description="Add sell rows to inspect FIFO trace output." />
           ) : (
             <>
-              <Select value={selectedSellId} onChange={(event) => setSelectedSellId(event.target.value)}>
-                <option value="">Select a sell transaction</option>
-                {selectedSellTxns.map((txn) => <option key={txn.id} value={txn.id}>{securityById.get(txn.securityId)?.symbol ?? txn.securityId} · {txn.date} · {formatQty(txn.quantity)}</option>)}
-              </Select>
-              <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2 text-left">Buy date</th><th className="px-3 py-2 text-right">Qty taken</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-right">Proceeds</th><th className="px-3 py-2 text-left">Term</th><th className="px-3 py-2 text-right">Holding days</th></tr></thead>
-                  <tbody>
-                    {trace.steps.map((step) => <tr key={`${step.buyDate}-${step.qtyTaken}`}><td className="px-3 py-2">{step.buyDate}</td><td className="px-3 py-2 text-right">{formatQty(step.qtyTaken)}</td><td className="px-3 py-2 text-right">{formatMoney(step.costInr)}</td><td className="px-3 py-2 text-right">{formatMoney(step.proceedsInr)}</td><td className="px-3 py-2">{step.term}</td><td className="px-3 py-2 text-right">{step.holdingPeriodDays}</td></tr>)}
-                  </tbody>
-                </table>
-              </div>
+              <Picker aria-label="Sell transaction" selectedKey={selectedSellId} onSelectionChange={(key) => setSelectedSellId(String(key))} items={sellTxns}>
+                {(txn) => <Item key={txn.id}>{securityById.get(txn.securityId)?.symbol ?? txn.securityId} · {txn.date} · {formatQty(txn.quantity)}</Item>}
+              </Picker>
+              {trace.steps.length === 0 ? (
+                <EmptyState title="Choose a sell transaction" description="FIFO lot consumption details will appear here." />
+              ) : (
+                <TableView aria-label="FIFO trace" density="compact">
+                  <TableHeader>
+                    <Column>Buy date</Column>
+                    <Column align="end">Qty taken</Column>
+                    <Column align="end">Cost</Column>
+                    <Column align="end">Proceeds</Column>
+                    <Column>Term</Column>
+                    <Column align="end">Holding days</Column>
+                  </TableHeader>
+                  <TableBody items={trace.steps}>
+                    {(step) => (
+                      <Row key={`${step.buyDate}-${step.qtyTaken}-${step.remainingLotQty}`}>
+                        <Cell>{step.buyDate}</Cell>
+                        <Cell>{formatQty(step.qtyTaken)}</Cell>
+                        <Cell>{formatMoney(step.costInr)}</Cell>
+                        <Cell>{formatMoney(step.proceedsInr)}</Cell>
+                        <Cell>{step.term}</Cell>
+                        <Cell>{step.holdingPeriodDays}</Cell>
+                      </Row>
+                    )}
+                  </TableBody>
+                </TableView>
+              )}
             </>
           )}
-        </Card>
-      </div>
-    </div>
+        </Panel>
+      </View>
+    </View>
   )
 }
