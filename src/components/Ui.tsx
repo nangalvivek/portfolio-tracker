@@ -60,22 +60,24 @@ export const EmptyState = ({
   action?: ReactNode
   illustration?: ReactNode
 }) => (
-  <View
+  <Flex
+    direction="column"
+    alignItems="center"
+    justifyContent="center"
+    gap="size-200"
     UNSAFE_style={{
-      display: 'grid',
-      justifyItems: 'center',
       textAlign: 'center',
-      gap: '12px',
-      padding: '24px 12px',
+      width: '100%',
+      minHeight: '100%',
     }}
   >
     <IllustratedMessage>
       {illustration ?? <NotFoundIllustration />}
       <Heading level={4}>{title}</Heading>
       <Content>{description}</Content>
-      {action ? <Content>{action}</Content> : null}
     </IllustratedMessage>
-  </View>
+    {action ? <View UNSAFE_style={{display: 'flex', justifyContent: 'center'}}>{action}</View> : null}
+  </Flex>
 )
 
 export const MetricCard = ({label, value}: {label: string; value: string}) => (
