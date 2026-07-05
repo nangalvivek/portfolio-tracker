@@ -14,7 +14,7 @@ export const TopBar = () => {
           <span className="top-bar__brand-mark" aria-hidden="true">
             <BrandMark />
           </span>
-          <span className="top-bar__brand-text">Portfolio Tracker</span>
+          <span className="top-bar__brand-text">Vitta</span>
         </div>
 
         <button

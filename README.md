@@ -1,4 +1,4 @@
-# Portfolio & Tax Tracker
+# Vitta
 
 A **browser-only, offline-first** personal tool for an Indian tax resident (ROR) to track
 Indian and US investments, compute FIFO capital gains, and produce the tables needed for

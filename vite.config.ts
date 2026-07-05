@@ -40,8 +40,8 @@ export default defineConfig(({mode}) => ({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Portfolio & Tax Tracker',
-        short_name: 'Tracker',
+        name: 'Vitta',
+        short_name: 'Vitta',
         description:
           'Browser-only personal investment & Indian tax (ITR) tracker. All data stays on your device.',
         theme_color: '#0f172a',
