@@ -36,6 +36,38 @@
   display: block;
 }
 
+:root .top-bar__brand-mark .brand-mark__bg {
+  fill: #1B3357;
+}
+
+:root .top-bar__brand-mark .brand-mark__seg-white {
+  fill: #FFFFFF;
+}
+
+:root .top-bar__brand-mark .brand-mark__seg-med {
+  fill: #91A7BE;
+}
+
+:root .top-bar__brand-mark .brand-mark__seg-light {
+  fill: #B8D5E7;
+}
+
+:root[data-color-scheme='dark'] .top-bar__brand-mark .brand-mark__bg {
+  fill: #E6EDF4;
+}
+
+:root[data-color-scheme='dark'] .top-bar__brand-mark .brand-mark__seg-white {
+  fill: #1B3357;
+}
+
+:root[data-color-scheme='dark'] .top-bar__brand-mark .brand-mark__seg-med {
+  fill: #5C7D96;
+}
+
+:root[data-color-scheme='dark'] .top-bar__brand-mark .brand-mark__seg-light {
+  fill: #3A5A75;
+}
+
 .top-bar__brand-text {
   font-weight: 700;
   font-size: 1.25rem;
