@@ -31,6 +31,11 @@ const pageHeaderTextStyle: string = style({
   minWidth: 0
 })
 
+const pageTitleStyle = style({
+  marginTop: 0,
+  marginBottom: 0
+})
+
 const actionGroupStyle: string = style({
   display: 'flex',
   gap: space(8),
@@ -93,7 +98,7 @@ export const Panel = ({children}: {children: ReactNode}) => <div className={pane
 export const PageHeader = ({title, actions}: {title: string; actions?: ReactNode}) => (
   <div className={pageHeaderStyle}>
     <div className={pageHeaderTextStyle}>
-      <Heading level={1}>{title}</Heading>
+      <Heading level={1} styles={pageTitleStyle}>{title}</Heading>
     </div>
     {actions ? <div className={actionGroupStyle}>{actions}</div> : null}
   </div>
