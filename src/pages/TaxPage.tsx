@@ -33,8 +33,8 @@ const yearPickerRingStyle: string = style({
   borderWidth: 2,
   borderStyle: 'solid',
   borderColor: 'accent-900',
-  paddingX: space(8),
-  paddingY: space(2)
+  paddingX: space(16),
+  paddingY: 0
 })
 
 const taxPageStackStyle: string = style({display: 'grid', gap: space(24)})
