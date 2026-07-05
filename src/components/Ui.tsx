@@ -28,8 +28,10 @@ const pageHeaderStyle: string = style({
 })
 
 const pageHeaderTextStyle: string = style({
-  display: 'grid',
-  gap: space(4),
+  display: 'flex',
+  alignItems: 'center',
+  gap: space(16),
+  flexWrap: 'wrap',
   minWidth: 0
 })
 
@@ -101,10 +103,11 @@ const emptyStateRegionStyle: string = style({
 
 export const Panel = ({children}: {children: ReactNode}) => <div className={panelStyle}>{children}</div>
 
-export const PageHeader = ({title, actions}: {title: string; actions?: ReactNode}) => (
+export const PageHeader = ({title, titleAdornment, actions}: {title: string; titleAdornment?: ReactNode; actions?: ReactNode}) => (
   <div className={pageHeaderStyle}>
     <div className={pageHeaderTextStyle}>
       <Heading level={1} styles={pageTitleStyle}>{title}</Heading>
+      {titleAdornment}
     </div>
     {actions ? <div className={actionGroupStyle}>{actions}</div> : null}
   </div>

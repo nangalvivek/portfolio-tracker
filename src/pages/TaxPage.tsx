@@ -67,11 +67,13 @@ export const TaxPage = () => {
     <div className={taxPageStackStyle}>
       <PageHeader
         title="Tax"
+        titleAdornment={
+          <Picker aria-label="Tax year" selectedKey={String(taxYear)} onSelectionChange={(key) => setTaxYear(Number(key))}>
+            {years.map((year) => <PickerItem key={String(year)} id={String(year)} textValue={String(year)}>{year}</PickerItem>)}
+          </Picker>
+        }
         actions={
           <>
-            <Picker aria-label="Tax year" selectedKey={String(taxYear)} onSelectionChange={(key) => setTaxYear(Number(key))}>
-              {years.map((year) => <PickerItem key={String(year)}>{year}</PickerItem>)}
-            </Picker>
             <Button variant="secondary" onPress={() => exportCurrent('csv')}>Export CSV</Button>
             <Button variant="accent" onPress={() => exportCurrent('json')}>Export JSON</Button>
             <Button variant="secondary" onPress={() => downloadText(`itr-${taxYear}-bundle.json`, JSON.stringify(bundle, null, 2))}>Export ITR JSON bundle</Button>
