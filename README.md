@@ -34,7 +34,7 @@ npm run build     # tsc -b && vite build  -> dist/
 ## Deploy (GitHub Pages)
 
 Pushing to `main` runs `.github/workflows/deploy.yml`, which builds and publishes `dist/` to
-Pages. The Vite `base` is `/portfolio-tracker/` (override with `BASE_PATH` if the repo is renamed).
+Pages. The Vite `base` is `/Vitta/` (override with `BASE_PATH` if the repo is renamed).
 Enable Pages in the repo settings with **Source: GitHub Actions**.
 
 ## App sections

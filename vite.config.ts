@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
 // GitHub Pages serves a project site under /<repo>/. Allow override via BASE_PATH.
-const base = process.env.BASE_PATH ?? '/portfolio-tracker/'
+const base = process.env.BASE_PATH ?? '/Vitta/'
 const rootDir = dirname(fileURLToPath(import.meta.url))
 
 const stripCssInVitest = {
